@@ -3,25 +3,53 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Partner log</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <title>CF Clients</title>
+    <meta name="description" content="A working log for client meetings, kick-offs, weekly reporting and campaign launches." />
+    <meta name="theme-color" content="#E4EAE1" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#101614" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231F2C25'/%3E%3Cpath d='M8 9h16M8 15h16M8 21h10' stroke='%23E4EAE1' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231F2C25'/%3E%3Cpath d='M8 9h16M8 15h16M8 21h10' stroke='%23E4EAE1' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <meta name="apple-mobile-web-app-title" content="CF Clients" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/3.4.16/tailwind.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+    <script>
+      /* if that CDN is unreachable, pull the same libraries from the other one */
+      if (!window.React) {
+        document.write(
+          '<script src="https://unpkg.com/react@18/umd/react.production.min.js"><\/script>' +
+          '<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"><\/script>'
+        );
+      }
+    </script>
+    <script>
+      if (!window.tailwind) {
+        document.write('<script src="https://cdn.tailwindcss.com"><\/script>');
+      }
+    </script>
     <style>
-      html, body, #root { height: 100%; margin: 0; }
+      html, body, #root { height: 100%; margin: 0; background: #E4EAE1; transition: background 120ms; }
+      #boot { font: 14px Inter, system-ui, sans-serif; color: #5C6F64; padding: 28px; line-height: 1.6; }
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="boot">Opening the log…</div></div>
     <script>
+      if (!window.React || !window.ReactDOM) {
+        document.getElementById("boot").textContent =
+          "Couldn't load the page libraries — check the connection and reload.";
+      }
+    </script>
+    <script>
+      try {
 const {
   useState,
   useEffect,
   useMemo
 } = React;
 
-/* ---------- palette: ledger-paper green, one rust signal ---------- */
-const C = {
+/* ---------- palette: the same ledger, in daylight or at night ---------- */
+const LIGHT = {
   paper: "#E4EAE1",
   surface: "#F7F9F5",
   rule: "#BFCDBC",
@@ -33,10 +61,71 @@ const C = {
   soon: "#A87B18",
   launch: "#2C5A73",
   slack: "#42548C",
-  ok: "#4A7A5C"
+  ok: "#4A7A5C",
+  onAccent: "#F7F9F5"
+};
+const DARK = {
+  paper: "#101614",
+  surface: "#18201C",
+  rule: "#2C3833",
+  ruleSoft: "#222C27",
+  ink: "#E7EDE6",
+  inkSoft: "#9DAFA5",
+  inkFaint: "#6A7B72",
+  late: "#E27050",
+  soon: "#D3A63F",
+  launch: "#77AECB",
+  slack: "#93A2DD",
+  ok: "#74B686",
+  onAccent: "#0D1210"
+};
+/* mutable so every component picks the new values up on re-render */
+const C = {
+  ...LIGHT
+};
+const KIND_TONE = {};
+const inputStyle = {
+  fontFamily: "inherit",
+  fontSize: 14,
+  borderRadius: 3,
+  padding: "8px 10px",
+  width: "100%",
+  outline: "none"
+};
+const applyTheme = name => {
+  Object.assign(C, name === "dark" ? DARK : LIGHT);
+  /* these are read as plain objects at render time, so refresh them here
+     or they keep whichever palette was loaded first */
+  Object.assign(KIND_TONE, {
+    report_done: C.ok,
+    event: C.slack,
+    report: C.ink,
+    follow: C.soon,
+    launch: C.launch,
+    notify: C.late
+  });
+  Object.assign(inputStyle, {
+    color: C.ink,
+    background: C.surface,
+    border: `1px solid ${C.rule}`
+  });
+  if (typeof document !== "undefined") {
+    document.body.style.background = C.paper;
+    document.documentElement.style.background = C.paper;
+    document.documentElement.style.colorScheme = name === "dark" ? "dark" : "light";
+  }
 };
 const SERIF = "'Iowan Old Style','Hoefler Text',Palatino,'Palatino Linotype',Georgia,serif";
 const SANS = "Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif";
+const inClaude = typeof window !== "undefined" && !!window.storage;
+const KEYSTORE = "clientlog:apikey";
+const readKey = () => {
+  try {
+    return localStorage.getItem(KEYSTORE) || "";
+  } catch (e) {
+    return "";
+  }
+};
 const KEY = "meetinglog:v2";
 const OLD_KEY = "meetinglog:v1";
 
@@ -58,37 +147,46 @@ const store = {
       key: k,
       value: v
     };
+  },
+  async delete(k) {
+    if (typeof window !== "undefined" && window.storage) return window.storage.delete(k);
+    localStorage.removeItem(k);
+    return {
+      key: k,
+      deleted: true
+    };
   }
 };
+
+/* attachments live under their own keys so a PDF can't crowd out everything else */
+const FILE_KEY = id => `meetinglog:file:${id}`;
+const MAX_FILE = 2 * 1024 * 1024;
+const prettySize = n => n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 
 /* set window.__AI_ENDPOINT__ to route through your own proxy when self-hosting */
 const ENDPOINT = typeof window !== "undefined" && window.__AI_ENDPOINT__ || "https://api.anthropic.com/v1/messages";
 
 /* ---------- the rituals, as agreed ---------- */
 const KICKOFF = [{
-  id: "goals",
-  label: "Goals and KPIs agreed in writing"
+  id: "pricing",
+  label: "Pricing sent",
+  hint: "Rates and deliverables sent over for them to review."
 }, {
-  id: "budget",
-  label: "Budget, flight dates and pacing targets confirmed"
-}, {
-  id: "tracking",
-  label: "Tracking live and a test conversion verified"
-}, {
-  id: "creative",
-  label: "Assets received and the approval process agreed"
-}, {
-  id: "reporting",
-  label: "Weekly report recipients and send day agreed"
+  id: "contract_sent",
+  label: "Contract sent",
+  hint: "MSA or agreement sent for signature. Tick when it's out, not when it's back."
 }, {
   id: "slack",
-  label: "Shared Slack channel open with the partner"
+  label: "Shared Slack channel",
+  hint: "Channel open with them, or a note below saying where you talk instead."
 }, {
-  id: "golive",
-  label: "Go-live notification list confirmed"
+  id: "followup",
+  label: "Follow-up scheduled",
+  hint: "Next conversation booked, either an email thread or a Zoom in the diary."
 }, {
-  id: "escalation",
-  label: "Escalation path agreed for when it goes off plan"
+  id: "campaign_launch",
+  label: "Campaign launch",
+  hint: "Campaign built, approved and out the door."
 }];
 const SLACK_STATES = [{
   v: "none",
@@ -99,15 +197,6 @@ const SLACK_STATES = [{
 }, {
   v: "live",
   label: "Live"
-}];
-const CADENCES = [{
-  v: "two_months",
-  label: "Every 2 months",
-  days: 61
-}, {
-  v: "twice_monthly",
-  label: "Twice a month",
-  days: 15
 }];
 const REPORT_SECTIONS = [["snapshot", "Performance snapshot"], ["pacing", "Pacing"], ["top", "Top performing accounts and platforms"], ["optimizations", "Optimization suggestions"]];
 const ISSUE_STATES = [{
@@ -168,17 +257,26 @@ const urgencyColor = n => {
 
 /* ---------- shaping model output ---------- */
 const arr = v => Array.isArray(v) ? v.filter(Boolean) : [];
+const emailsOf = c => c && Array.isArray(c.emails) ? c.emails.filter(Boolean) : [];
+const primaryEmail = c => emailsOf(c)[0] || "";
+const emailLine = c => emailsOf(c).length ? emailsOf(c).join(", ") : "no email yet";
 const str = v => typeof v === "string" ? v.trim() : "";
 const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str(v));
 const uid = p => `${p}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 function blankClient(company) {
   return {
     company,
-    email: "",
-    notify: "",
+    emails: [],
+    live: null,
+    msa: {
+      link: "",
+      file: null,
+      signed: null
+    },
     slack: {
       status: "none",
-      channel: ""
+      channel: "",
+      note: ""
     },
     kickoff: {
       date: null,
@@ -189,15 +287,26 @@ function blankClient(company) {
     reporting: {
       on: true,
       lastSent: null,
-      lastReport: null
-    },
-    checkin: {
-      cadence: "two_months",
-      last: null
+      lastReport: null,
+      sent: []
     },
     issues: []
   };
 }
+/* the starting client list, used the first time the log is opened */
+function seededClients(text) {
+  const out = {};
+  text.split("\n").map(l => l.trim()).filter(Boolean).filter(l => !/^(client|total)$/i.test(l)).forEach(name => {
+    const k = name.toLowerCase();
+    if (out[k]) return;
+    const c = blankClient(name);
+    /* reporting starts paused: turn it on as each one actually goes live */
+    c.reporting.on = false;
+    out[k] = c;
+  });
+  return out;
+}
+
 /* older saved shapes get filled in rather than dropped */
 function hydrateClient(c, company) {
   const b = blankClient(company || c && c.company || "Untitled");
@@ -206,6 +315,12 @@ function hydrateClient(c, company) {
     ...b,
     ...c,
     company: str(c.company) || b.company,
+    emails: arr(c.emails).map(str).filter(Boolean).length ? arr(c.emails).map(str).filter(Boolean) : [str(c.email)].filter(Boolean),
+    live: c.live === true || c.live === false ? c.live : null,
+    msa: {
+      ...b.msa,
+      ...(c.msa || {})
+    },
     slack: typeof c.slack === "object" && c.slack ? {
       ...b.slack,
       ...c.slack
@@ -219,11 +334,8 @@ function hydrateClient(c, company) {
     },
     reporting: {
       ...b.reporting,
-      ...(c.reporting || {})
-    },
-    checkin: {
-      ...b.checkin,
-      ...(c.checkin || {})
+      ...(c.reporting || {}),
+      sent: arr(c.reporting && c.reporting.sent).length ? arr(c.reporting.sent).map(str).filter(Boolean) : [str(c.reporting && c.reporting.lastSent)].filter(Boolean)
     },
     issues: arr(c.issues)
   };
@@ -252,6 +364,7 @@ function normalizeMeeting(raw, data, who, known) {
       launch_date: parseISO(c && c.launch_date) ? str(c.launch_date) : null,
       channels: str(c && c.channels),
       notes: str(c && c.notes),
+      tracking: "",
       notified: false
     })).filter(c => c.name),
     problems: arr(data.problems).map(str).filter(Boolean),
@@ -264,23 +377,14 @@ function normalizeMeeting(raw, data, who, known) {
     }
   };
 }
-const KEYSTORE = "meetinglog:apikey";
-const inClaude = typeof window !== "undefined" && !!window.storage;
-const readKey = () => {
-  try {
-    return localStorage.getItem(KEYSTORE) || "";
-  } catch (e) {
-    return "";
-  }
-};
-async function askClaude(system, prompt) {
+async function askClaude(system, prompt, extra) {
   const headers = {
     "Content-Type": "application/json"
   };
   if (!inClaude) {
-    const key = readKey();
-    if (!key) throw new Error("no-key");
-    headers["x-api-key"] = key;
+    const apiKey = readKey();
+    if (!apiKey) throw new Error("no-key");
+    headers["x-api-key"] = apiKey;
     headers["anthropic-version"] = "2023-06-01";
     headers["anthropic-dangerous-direct-browser-access"] = "true";
   }
@@ -294,7 +398,8 @@ async function askClaude(system, prompt) {
       messages: [{
         role: "user",
         content: prompt
-      }]
+      }],
+      ...(extra || {})
     })
   });
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -305,7 +410,7 @@ async function askClaude(system, prompt) {
   if (a === -1 || b === -1) throw new Error("No JSON in response");
   return JSON.parse(text.slice(a, b + 1));
 }
-const structureNotes = (rawNotes, who, known) => askClaude("You turn messy post-meeting notes into a structured record for a partner-marketing team. Reply with one JSON object and nothing else: no prose, no markdown fences.", `Today is ${todayISO()}.${who ? `\nThe meeting was with: ${who}` : ""}${known && known.email ? `\nOn file for this client: ${known.email}` : ""}
+const structureNotes = (rawNotes, who, known) => askClaude("You turn messy post-meeting notes into a structured record for a client-marketing team. Reply with one JSON object and nothing else: no prose, no markdown fences.", `Today is ${todayISO()}.${who ? `\nThe meeting was with: ${who}` : ""}${known && known.email ? `\nOn file for this client: ${known.email}` : ""}
 
 Raw notes:
 """
@@ -332,15 +437,15 @@ Return a single JSON object with exactly these keys:
 Rules:
 - kind: "kickoff" if this was a kick-off call, "checkin" if a routine check-in, otherwise "call".
 - email: the client's email if one appears in the notes, otherwise null. Never invent one.
-- shared_slack: true only if the notes mention a shared Slack channel with the partner.
+- shared_slack: true only if the notes mention a shared Slack channel with the client.
 - problems: anything that went off plan, is at risk, or is underdelivering. Empty array if none.
 - Resolve relative dates like "next Thursday" against today's date.
 - meeting_date is today unless the notes say otherwise.
-- campaigns: only what the partner is actually launching or running.
+- campaigns: only what the client is actually launching or running.
 - follow_up.due: always choose a date. 7 days out by default, sooner if time-critical, and shortly before a campaign launch if one is coming.
 - summary: two sentences at most. Keep list items under 15 words.
 - Do not invent facts that are not in the notes.`);
-const draftReport = (company, campaigns, numbers) => askClaude("You write the weekly partner performance report for a partner-marketing team. Reply with one JSON object and nothing else: no prose, no markdown fences.", `Week ending ${todayISO()}. Partner: ${company}.${campaigns.length ? `\nLive or upcoming campaigns: ${campaigns.join("; ")}` : ""}
+const draftReport = (company, campaigns, numbers) => askClaude("You write the weekly client performance report for a client-marketing team. Reply with one JSON object and nothing else: no prose, no markdown fences.", `Week ending ${todayISO()}. Client: ${company}.${campaigns.length ? `\nLive or upcoming campaigns: ${campaigns.join("; ")}` : ""}
 
 This week's raw numbers and observations:
 """
@@ -365,17 +470,6 @@ Rules:
 - Use only the figures provided. Never invent numbers. If something is missing, say what is missing.`);
 
 /* ---------- atoms ---------- */
-const inputStyle = {
-  fontFamily: SANS,
-  fontSize: 14,
-  color: C.ink,
-  background: C.surface,
-  border: `1px solid ${C.rule}`,
-  borderRadius: 2,
-  padding: "7px 9px",
-  width: "100%",
-  outline: "none"
-};
 const Field = ({
   label,
   children
@@ -406,7 +500,7 @@ const Btn = ({
   const kinds = {
     solid: {
       background: C.ink,
-      color: C.surface,
+      color: C.onAccent,
       border: `1px solid ${C.ink}`
     },
     quiet: {
@@ -449,7 +543,7 @@ const Choice = ({
     padding: size < 13 ? "4px 9px" : "7px 11px",
     cursor: "pointer",
     background: value === o.v ? tone : "transparent",
-    color: value === o.v ? C.surface : C.inkSoft,
+    color: value === o.v ? C.onAccent : C.inkSoft,
     border: `1px solid ${value === o.v ? tone : C.rule}`
   }
 }, o.label)));
@@ -463,6 +557,27 @@ const Head = ({
     fontSize: size,
     color: C.ink,
     borderBottom: `1px solid ${C.rule}`
+  }
+}, children);
+function useNarrow(px) {
+  const [narrow, setNarrow] = useState(typeof window !== "undefined" ? window.innerWidth < px : false);
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < px);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [px]);
+  return narrow;
+}
+const Label = ({
+  children,
+  color
+}) => /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontFamily: SANS,
+    fontSize: 10.5,
+    letterSpacing: "0.09em",
+    textTransform: "uppercase",
+    color: color || C.inkFaint
   }
 }, children);
 const Meta = ({
@@ -489,37 +604,74 @@ const Body = ({
 }, children);
 
 /* ---------- cadence maths ---------- */
-const cadenceDays = v => (CADENCES.find(c => c.v === v) || CADENCES[0]).days;
+function isLive(client, theirMeetings) {
+  if (client.live === true || client.live === false) return client.live;
+  return theirMeetings.some(m => m.campaigns.some(c => c.launch_date && daysOut(c.launch_date) <= 0));
+}
+const LivePill = ({
+  live,
+  onToggle
+}) => /*#__PURE__*/React.createElement("button", {
+  onClick: e => {
+    e.stopPropagation();
+    onToggle(!live);
+  },
+  title: live ? "Live — click to mark not live" : "Not live — click to mark live",
+  style: {
+    fontFamily: SANS,
+    fontSize: 11.5,
+    lineHeight: 1,
+    padding: "4px 9px",
+    borderRadius: 999,
+    cursor: "pointer",
+    background: live ? C.ok : C.late,
+    color: C.onAccent,
+    border: "none"
+  }
+}, live ? "Live" : "Not live");
 function clientDue(client, firstSeen) {
   const anchor = client.kickoff.date || firstSeen || todayISO();
   const report = client.reporting.on ? addDays(client.reporting.lastSent || anchor, 7) : null;
-  const checkin = addDays(client.checkin.last || anchor, cadenceDays(client.checkin.cadence));
   return {
-    report,
-    checkin
+    report
   };
 }
 
 /* ---------- intake ---------- */
 function Intake({
   onFiled,
-  clients
+  clients,
+  startOpen,
+  clientNames
 }) {
+  const [open, setOpen] = useState(!!startOpen);
   const [who, setWho] = useState("");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [draft, setDraft] = useState(null);
-  const known = clients[who.trim().toLowerCase()] || null;
+  const typed = who.trim();
+  const known = clients[typed.toLowerCase()] || null;
+  const nearMatch = !known && typed.length > 2 ? (clientNames || []).find(n => {
+    const a = n.toLowerCase();
+    const b = typed.toLowerCase();
+    return a.startsWith(b) || b.startsWith(a) || a.includes(b) || b.includes(a);
+  }) : null;
   const run = async () => {
     if (!notes.trim()) return;
     setBusy(true);
     setError("");
     try {
-      const data = await structureNotes(notes.trim(), who.trim(), known);
-      setDraft(normalizeMeeting(notes.trim(), data, who.trim(), known));
+      const data = await structureNotes(notes.trim(), typed, known);
+      const draftRow = normalizeMeeting(notes.trim(), data, typed, known);
+      /* keep one canonical spelling per client */
+      const existing = clients[draftRow.company.trim().toLowerCase()];
+      setDraft(existing ? {
+        ...draftRow,
+        company: existing.company
+      } : draftRow);
     } catch (e) {
-      setError(e && e.message === "no-key" ? "Add your API key at the bottom of the page, then try again." : "Couldn't sort those notes. File them as-is and set the dates yourself.");
+      setError(e && e.message === "no-key" ? "Open Settings at the foot of the page and add a key." : "Couldn't sort those notes. File them as-is and set the dates yourself.");
     }
     setBusy(false);
   };
@@ -535,6 +687,26 @@ function Intake({
     },
     onDiscard: () => setDraft(null)
   });
+  if (!open) return /*#__PURE__*/React.createElement("button", {
+    onClick: () => setOpen(true),
+    className: "w-full flex items-baseline gap-2",
+    style: {
+      padding: "13px 15px",
+      background: "transparent",
+      borderRadius: 4,
+      border: `1px solid ${C.rule}`,
+      cursor: "pointer",
+      textAlign: "left"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: SANS,
+      fontSize: 14.5,
+      color: C.ink
+    }
+  }, "File a meeting"), /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkFaint
+  }, "paste your notes, however rough"));
   return /*#__PURE__*/React.createElement("div", {
     className: "p-4 sm:p-5",
     style: {
@@ -544,15 +716,28 @@ function Intake({
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid gap-3"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Field, {
-    label: "Which partner?"
+    label: "Which client?"
   }, /*#__PURE__*/React.createElement("input", {
     style: inputStyle,
     value: who,
+    list: "cf-client-names",
     onChange: e => setWho(e.target.value),
-    placeholder: "Partner or company"
-  })), known && /*#__PURE__*/React.createElement("p", {
+    placeholder: "Client or company"
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "cf-client-names"
+  }, (clientNames || []).map(n => /*#__PURE__*/React.createElement("option", {
+    key: n,
+    value: n
+  })))), nearMatch && /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 flex gap-2 items-baseline flex-wrap"
+  }, /*#__PURE__*/React.createElement(Meta, {
+    color: C.soon
+  }, "You already have ", nearMatch, ". Same client?"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => setWho(nearMatch)
+  }, "Use ", nearMatch)), known && /*#__PURE__*/React.createElement("p", {
     className: "mt-1"
-  }, /*#__PURE__*/React.createElement(Meta, null, known.email || "no email yet", " ·", " ", /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement(Meta, null, emailLine(known), " ·", " ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: known.slack.status === "live" ? C.slack : C.inkFaint
     }
@@ -574,7 +759,10 @@ function Intake({
     kind: "solid",
     onClick: run,
     disabled: busy || !notes.trim()
-  }, busy ? "Sorting your notes…" : "Sort out these notes"), error && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Meta, {
+  }, busy ? "Sorting your notes…" : "Sort out these notes"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => setOpen(false)
+  }, "Cancel"), error && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Meta, {
     color: C.late
   }, error), /*#__PURE__*/React.createElement(Btn, {
     onClick: () => {
@@ -617,7 +805,7 @@ function ReviewDraft({
   }, /*#__PURE__*/React.createElement(Meta, null, "Check the dates before this goes in the log."), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-3 mt-4 sm:grid-cols-3"
   }, /*#__PURE__*/React.createElement(Field, {
-    label: "Partner"
+    label: "Client"
   }, /*#__PURE__*/React.createElement("input", {
     style: inputStyle,
     value: draft.company,
@@ -688,7 +876,7 @@ function ReviewDraft({
     className: "mt-1"
   }, /*#__PURE__*/React.createElement(Meta, {
     color: C.slack
-  }, "Your notes mention a shared channel — mark it live on the Partners tab once it’s open.")), draft.campaigns.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Your notes mention a shared channel — mark it live on the Clients tab once it’s open.")), draft.campaigns.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "mt-5"
   }, /*#__PURE__*/React.createElement(Meta, null, "Campaigns picked up from the notes"), draft.campaigns.map((c, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
@@ -731,202 +919,421 @@ function ReviewDraft({
 }
 
 /* ---------- the spine: everything waiting on you ---------- */
+/* ---------- one place that works out everything on the horizon ---------- */
+function setupGaps(clients) {
+  const out = [];
+  Object.values(clients).forEach(c => {
+    const missing = [];
+    if (!c.kickoff.done) missing.push("kick-off sign-off");
+    if (c.slack.status !== "live" && !(c.slack.note || "").trim()) missing.push(c.slack.status === "requested" ? "Slack channel (requested)" : "Slack channel");
+    if (missing.length) out.push({
+      key: c.company.toLowerCase(),
+      company: c.company,
+      detail: missing.join(", "),
+      tone: c.kickoff.done ? C.slack : C.late,
+      rank: c.kickoff.done ? 1 : 0
+    });
+  });
+  return out.sort((a, b) => a.rank - b.rank || a.company.localeCompare(b.company));
+}
+
+/* every recurrence of a ritual between two dates, so the calendar can look ahead */
+function recurrences(startISO, stepDays, fromISO, toISO) {
+  const out = [];
+  if (!startISO || !stepDays) return out;
+  let d = startISO;
+  let guard = 0;
+  while (d < fromISO && guard < 500) {
+    d = addDays(d, stepDays);
+    guard += 1;
+  }
+  while (d <= toISO && guard < 500) {
+    out.push(d);
+    d = addDays(d, stepDays);
+    guard += 1;
+  }
+  return out;
+}
+function buildAgenda({
+  meetings,
+  clients,
+  firstSeen,
+  fromISO,
+  toISO,
+  repeat,
+  events
+}) {
+  const items = [];
+  Object.values(clients).forEach(c => {
+    const key = c.company.toLowerCase();
+    const due = clientDue(c, firstSeen[key]);
+    if (repeat) {
+      (c.reporting.sent || []).forEach(d => {
+        if (fromISO && (d < fromISO || d > toISO)) return;
+        items.push({
+          kind: "report_done",
+          date: d,
+          label: c.company,
+          detail: "weekly report sent",
+          key,
+          done: true
+        });
+      });
+    }
+    if (due.report) {
+      const dates = repeat ? recurrences(due.report, 7, fromISO, toISO) : [due.report];
+      dates.forEach(d => items.push({
+        kind: "report",
+        date: d,
+        label: c.company,
+        detail: "weekly report due",
+        key
+      }));
+    }
+  });
+  meetings.forEach(m => {
+    if (!m.follow_up.done) items.push({
+      kind: "follow",
+      date: m.follow_up.due,
+      label: m.company,
+      detail: m.follow_up.type,
+      id: m.id,
+      key: m.company.toLowerCase()
+    });
+    m.campaigns.forEach((c, ci) => {
+      if (!c.launch_date) return;
+      const n = daysOut(c.launch_date);
+      if (n >= 0) items.push({
+        kind: "launch",
+        date: c.launch_date,
+        label: c.name,
+        detail: `${m.company} goes live`,
+        key: m.company.toLowerCase()
+      });
+      if (n !== null && n <= 0 && !c.notified) items.push({
+        kind: "notify",
+        date: c.launch_date,
+        label: c.name,
+        detail: `email the go-live notice for ${m.company}`,
+        id: m.id,
+        ci,
+        key: m.company.toLowerCase()
+      });
+    });
+  });
+  arr(events).forEach(e => {
+    if (fromISO && (e.date < fromISO || e.date > toISO)) return;
+    if (!fromISO && daysOut(e.date) < 0) return;
+    items.push({
+      kind: "event",
+      date: e.date,
+      label: e.client || e.title,
+      detail: e.client ? `${e.time ? e.time + " · " : ""}${e.title}` : e.time || "on your calendar",
+      key: (e.client || "").toLowerCase()
+    });
+  });
+  const weight = it => it.kind === "notify" ? -1000 : daysOut(it.date) ?? 9999;
+  return items.sort((a, b) => weight(a) - weight(b));
+}
+const KIND_WORD = {
+  report_done: "Report sent",
+  event: "In the diary",
+  report: "Report",
+  follow: "Follow-up",
+  launch: "Launch",
+  notify: "Go-live notice"
+};
+
+/* ---------- the spine, as a table ---------- */
 function Rail({
   meetings,
   clients,
   firstSeen,
+  events,
   onDone,
   onSnooze,
   onJump,
-  onNotified
+  onNotified,
+  onReportSent
 }) {
   const [showAll, setShowAll] = useState(false);
-  const HORIZON = 14;
-  const CAP = 6;
+  const narrow = useNarrow(680);
   const {
     setup,
-    dated
+    buckets,
+    hiddenCount,
+    counts
   } = useMemo(() => {
-    /* dates you already have a follow-up booked for, so cadence nags stay quiet */
-    const booked = {};
-    meetings.forEach(m => {
-      if (m.follow_up.done) return;
-      const k = m.company.toLowerCase();
-      booked[k] = booked[k] || [];
-      booked[k].push(m.follow_up.due);
+    const all = buildAgenda({
+      meetings,
+      clients,
+      firstSeen,
+      events,
+      repeat: false
     });
-    const alreadyBooked = (key, date) => (booked[key] || []).some(d => Math.abs(daysOut(d) - daysOut(date)) <= 10);
-
-    /* one line per partner, not one per missing thing */
-    const setup = [];
-    const dated = [];
-    Object.values(clients).forEach(c => {
-      const key = c.company.toLowerCase();
-      const missing = [];
-      if (!c.kickoff.done) missing.push("kick-off sign-off");
-      if (c.slack.status !== "live") missing.push(c.slack.status === "requested" ? "Slack channel (requested)" : "Slack channel");
-      if (!c.notify) missing.push("go-live list");
-      if (missing.length) setup.push({
-        key,
-        company: c.company,
-        detail: missing.join(", "),
-        tone: c.kickoff.done ? C.slack : C.late,
-        rank: c.kickoff.done ? 1 : 0
-      });
-      const due = clientDue(c, firstSeen[key]);
-      if (due.report) dated.push({
-        kind: "report",
-        date: due.report,
-        label: c.company,
-        detail: "weekly report due",
-        key
-      });
-      if (!alreadyBooked(key, due.checkin)) dated.push({
-        kind: "checkin",
-        date: due.checkin,
-        label: c.company,
-        detail: `${(CADENCES.find(x => x.v === c.checkin.cadence) || CADENCES[0]).label.toLowerCase()} check-in`,
-        key
-      });
-    });
-    setup.sort((a, b) => a.rank - b.rank || a.company.localeCompare(b.company));
-    meetings.forEach(m => {
-      if (!m.follow_up.done) dated.push({
-        kind: "follow",
-        date: m.follow_up.due,
-        label: m.company,
-        detail: m.follow_up.type,
-        id: m.id
-      });
-      m.campaigns.forEach((c, ci) => {
-        if (!c.launch_date) return;
-        const n = daysOut(c.launch_date);
-        if (n >= 0) dated.push({
-          kind: "launch",
-          date: c.launch_date,
-          label: c.name,
-          detail: `${m.company} goes live`
-        });
-        if (n !== null && n <= 0 && !c.notified) dated.push({
-          kind: "notify",
-          date: c.launch_date,
-          label: c.name,
-          detail: `email the go-live notice for ${m.company}`,
-          id: m.id,
-          ci
-        });
-      });
-    });
-
-    /* overdue and go-live notices first, then plain date order */
-    const weight = it => {
+    const groups = [{
+      id: "late",
+      title: "Late",
+      items: []
+    }, {
+      id: "now",
+      title: "Today and tomorrow",
+      items: []
+    }, {
+      id: "week",
+      title: "This week",
+      items: []
+    }, {
+      id: "soon",
+      title: "Next fortnight",
+      items: []
+    }, {
+      id: "later",
+      title: "Further out",
+      items: []
+    }];
+    all.forEach(it => {
       const n = daysOut(it.date);
-      if (it.kind === "notify") return -1000;
-      return n === null ? 9999 : n;
-    };
-    dated.sort((a, b) => weight(a) - weight(b));
+      const g = n === null ? 4 : n < 0 ? 0 : n <= 1 ? 1 : n <= 7 ? 2 : n <= 14 ? 3 : 4;
+      groups[g].items.push(it);
+    });
+    const shown = showAll ? groups : groups.slice(0, 4);
     return {
-      setup,
-      dated
+      setup: setupGaps(clients),
+      buckets: shown.filter(g => g.items.length),
+      hiddenCount: showAll ? 0 : groups[4].items.length,
+      counts: {
+        late: groups[0].items.length,
+        week: groups[1].items.length + groups[2].items.length,
+        launches: all.filter(i => i.kind === "launch" || i.kind === "notify").length
+      }
     };
-  }, [meetings, clients, firstSeen]);
-  if (!setup.length && !dated.length) return /*#__PURE__*/React.createElement(Meta, {
-    color: C.inkFaint
-  }, "Nothing waiting on you. File a meeting to start the clocks.");
-  const near = dated.filter(it => {
-    const n = daysOut(it.date);
-    return n === null || n <= HORIZON;
-  });
-  const visible = showAll ? dated : near.slice(0, CAP);
-  const hidden = dated.length - visible.length;
-  const setupVisible = showAll ? setup : setup.slice(0, 3);
-  return /*#__PURE__*/React.createElement("div", null, setupVisible.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "pb-2"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "pt-3 pb-1"
-  }, /*#__PURE__*/React.createElement(Meta, {
-    color: C.inkFaint
-  }, "Not set up yet")), setupVisible.map((it, i) => /*#__PURE__*/React.createElement("div", {
+  }, [meetings, clients, firstSeen, events, showAll]);
+  const empty = !setup.length && !buckets.length && !hiddenCount;
+  const Tally = ({
+    n,
+    label,
+    tone
+  }) => /*#__PURE__*/React.createElement("div", {
+    style: {
+      minWidth: 88
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: SANS,
+      fontSize: 32,
+      fontWeight: 300,
+      lineHeight: 1,
+      letterSpacing: "-0.02em",
+      color: n ? tone : C.inkFaint
+    }
+  }, n), /*#__PURE__*/React.createElement("div", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement(Label, null, label)));
+  const Row = ({
+    children
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4 items-baseline",
+    style: {
+      padding: "15px 0",
+      borderBottom: `1px solid ${C.ruleSoft}`
+    }
+  }, children);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-10 flex-wrap",
+    style: {
+      paddingBottom: 26
+    }
+  }, /*#__PURE__*/React.createElement(Tally, {
+    n: counts.late,
+    label: "late",
+    tone: C.late
+  }), /*#__PURE__*/React.createElement(Tally, {
+    n: counts.week,
+    label: "due this week",
+    tone: C.ink
+  }), /*#__PURE__*/React.createElement(Tally, {
+    n: counts.launches,
+    label: "launches ahead",
+    tone: C.ink
+  })), setup.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      paddingBottom: 22
+    }
+  }, /*#__PURE__*/React.createElement(Label, null, "Not set up yet"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4 flex-wrap mt-2"
+  }, setup.map(it => /*#__PURE__*/React.createElement("button", {
     key: it.key,
-    className: "flex gap-3 py-2 cursor-pointer",
     onClick: () => onJump(it.key),
     style: {
-      borderTop: i ? `1px solid ${C.ruleSoft}` : "none"
+      fontFamily: SANS,
+      fontSize: 13.5,
+      background: "none",
+      border: "none",
+      padding: 0,
+      cursor: "pointer",
+      color: C.ink,
+      borderBottom: `1px solid ${C.rule}`
+    }
+  }, it.company, " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.inkFaint
+    }
+  }, "— ", it.detail))))), empty && /*#__PURE__*/React.createElement("p", {
+    style: {
+      paddingTop: 8
+    }
+  }, /*#__PURE__*/React.createElement(Body, {
+    color: C.inkFaint
+  }, "Nothing waiting on you. File a meeting and the reporting clock, follow-up and any launch dates all land here.")), !empty && !narrow && /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4",
+    style: {
+      paddingBottom: 10,
+      borderBottom: `1px solid ${C.rule}`
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "shrink-0",
     style: {
-      width: 3,
-      background: it.tone,
-      borderRadius: 2
+      width: 62
     }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement(Label, null, "Date")), /*#__PURE__*/React.createElement("div", {
+    className: "grow"
+  }, /*#__PURE__*/React.createElement(Label, null, "Client")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 210
+    }
+  }, /*#__PURE__*/React.createElement(Label, null, "What")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 92
+    }
+  }, /*#__PURE__*/React.createElement(Label, null, "When")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 96
+    }
+  })), buckets.map(g => /*#__PURE__*/React.createElement("div", {
+    key: g.id
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontFamily: SERIF,
-      fontSize: 16,
-      color: C.ink
+      padding: "22px 0 8px"
     }
-  }, it.company), /*#__PURE__*/React.createElement(Meta, null, it.detail)))), !showAll && setup.length > 3 && /*#__PURE__*/React.createElement(Meta, {
-    color: C.inkFaint
-  }, "and ", setup.length - 3, " more partner(s)")), visible.length === 0 && /*#__PURE__*/React.createElement("p", {
-    className: "py-3"
-  }, /*#__PURE__*/React.createElement(Meta, {
-    color: C.inkFaint
-  }, "Nothing due in the next fortnight.")), visible.map((it, i) => {
+  }, /*#__PURE__*/React.createElement(Label, {
+    color: g.id === "late" ? C.late : C.inkFaint
+  }, g.title, " · ", g.items.length)), g.items.map((it, i) => {
     const n = daysOut(it.date);
-    const col = it.kind === "launch" ? C.launch : it.kind === "notify" ? C.late : urgencyColor(n);
-    return /*#__PURE__*/React.createElement("div", {
-      key: i,
-      className: "flex gap-3 py-3",
-      style: {
-        borderTop: `1px solid ${C.ruleSoft}`
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "shrink-0",
-      style: {
-        width: 3,
-        background: col,
-        borderRadius: 2
-      }
-    }), /*#__PURE__*/React.createElement("div", {
-      className: "min-w-0 grow"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-baseline gap-2 flex-wrap"
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontFamily: SERIF,
-        fontSize: 17,
-        color: C.ink,
-        lineHeight: 1.25
-      }
-    }, it.label), /*#__PURE__*/React.createElement(Meta, {
-      color: col
-    }, relLabel(n))), /*#__PURE__*/React.createElement(Meta, null, it.detail, " · ", fmtDate(it.date)), /*#__PURE__*/React.createElement("div", {
-      className: "flex gap-1 mt-1"
-    }, it.kind === "follow" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
+    const late = n !== null && n < 0;
+    const d = parseISO(it.date);
+    const actions = /*#__PURE__*/React.createElement(React.Fragment, null, it.kind === "follow" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
       kind: "bare",
       onClick: () => onDone(it.id)
     }, "Done"), /*#__PURE__*/React.createElement(Btn, {
       kind: "bare",
       onClick: () => onSnooze(it.id, 7)
-    }, "Push a week")), (it.kind === "report" || it.kind === "checkin") && /*#__PURE__*/React.createElement(Btn, {
+    }, "+1w")), it.kind === "report" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
+      kind: "bare",
+      onClick: () => onReportSent(it.key, it.date)
+    }, "Done"), /*#__PURE__*/React.createElement(Btn, {
       kind: "bare",
       onClick: () => onJump(it.key)
-    }, "Open ", it.label), it.kind === "notify" && /*#__PURE__*/React.createElement(Btn, {
+    }, "Open")), it.kind === "notify" && /*#__PURE__*/React.createElement(Btn, {
       kind: "bare",
       onClick: () => onNotified(it.id, it.ci)
-    }, "Notice sent"))));
-  }), (hidden > 0 || showAll) && /*#__PURE__*/React.createElement("div", {
-    className: "pt-3",
+    }, "Sent"), (it.kind === "launch" || it.kind === "event") && it.key && /*#__PURE__*/React.createElement(Btn, {
+      kind: "bare",
+      onClick: () => onJump(it.key)
+    }, "Open"));
+    if (narrow) return /*#__PURE__*/React.createElement(Row, {
+      key: i
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "min-w-0 grow"
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: SANS,
+        fontSize: 15,
+        color: C.ink
+      }
+    }, it.label), /*#__PURE__*/React.createElement("div", {
+      className: "mt-1"
+    }, /*#__PURE__*/React.createElement(Meta, {
+      color: late ? C.late : C.inkSoft
+    }, KIND_WORD[it.kind], " · ", fmtDate(it.date), " · ", relLabel(n)))), /*#__PURE__*/React.createElement("div", {
+      className: "shrink-0 flex gap-1"
+    }, actions));
+    return /*#__PURE__*/React.createElement(Row, {
+      key: i
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "shrink-0",
+      style: {
+        width: 62
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: SANS,
+        fontSize: 13.5,
+        color: late ? C.late : C.inkSoft,
+        whiteSpace: "nowrap"
+      }
+    }, d ? d.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric"
+    }) : "—")), /*#__PURE__*/React.createElement("div", {
+      className: "grow min-w-0 flex items-baseline gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 5,
+        height: 5,
+        borderRadius: 999,
+        background: KIND_TONE[it.kind],
+        display: "inline-block",
+        flexShrink: 0
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: SANS,
+        fontSize: 15,
+        color: C.ink,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      }
+    }, it.label)), /*#__PURE__*/React.createElement("div", {
+      className: "shrink-0",
+      style: {
+        width: 210
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: SANS,
+        fontSize: 13.5,
+        color: C.inkSoft,
+        display: "block",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      }
+    }, it.detail)), /*#__PURE__*/React.createElement("div", {
+      className: "shrink-0",
+      style: {
+        width: 92
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: SANS,
+        fontSize: 13.5,
+        color: late ? C.late : C.inkSoft
+      }
+    }, relLabel(n))), /*#__PURE__*/React.createElement("div", {
+      className: "shrink-0 flex gap-1",
+      style: {
+        width: 96
+      }
+    }, actions));
+  }))), (hiddenCount > 0 || showAll) && /*#__PURE__*/React.createElement("div", {
     style: {
-      borderTop: `1px solid ${C.ruleSoft}`
+      paddingTop: 18
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "bare",
     onClick: () => setShowAll(!showAll)
-  }, showAll ? "Show only what's near" : `Show everything else (${hidden})`)));
+  }, showAll ? "Show only what's near" : `Show what's further out (${hiddenCount})`)));
 }
 
 /* ---------- meeting body ---------- */
@@ -960,7 +1367,7 @@ function MeetingBody({
       background: C.paper,
       borderLeft: `3px solid ${C.late}`
     }
-  }, /*#__PURE__*/React.createElement(Meta, {
+  }, /*#__PURE__*/React.createElement(Label, {
     color: C.late
   }, "Off plan"), /*#__PURE__*/React.createElement("ul", null, m.problems.map((p, i) => /*#__PURE__*/React.createElement("li", {
     key: i,
@@ -1040,8 +1447,9 @@ function LogEntry({
     onClick: () => setOpen(!open)
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      fontFamily: SERIF,
-      fontSize: 22,
+      fontFamily: SANS,
+      fontSize: 15.5,
+      fontWeight: 500,
       color: C.ink
     }
   }, m.company), kindLabel && /*#__PURE__*/React.createElement(Meta, {
@@ -1065,11 +1473,15 @@ function LogEntry({
     className: "mt-2"
   }, /*#__PURE__*/React.createElement("p", {
     className: "mb-3"
-  }, /*#__PURE__*/React.createElement(Meta, null, client && client.email || m.email || "no email yet", client && client.slack.status === "live" ? /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement(Meta, null, client && emailLine(client) || m.email || "no email yet", client && client.slack.status === "live" ? /*#__PURE__*/React.createElement("span", {
     style: {
       color: C.slack
     }
-  }, " · ", client.slack.channel || "shared channel live") : null)), /*#__PURE__*/React.createElement(MeetingBody, {
+  }, " · ", client.slack.channel || "shared channel live") : client && (client.slack.note || "").trim() ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.inkFaint
+    }
+  }, " · ", client.slack.note) : null)), /*#__PURE__*/React.createElement(MeetingBody, {
     m: m,
     onToggleAction: i => onToggleAction(m.id, i)
   }), /*#__PURE__*/React.createElement("div", {
@@ -1092,7 +1504,7 @@ function LogEntry({
       whiteSpace: "pre-wrap",
       userSelect: "all"
     }
-  }, `${m.company} — ${m.follow_up.type}\n${fmtDate(m.follow_up.due)} · Google Meet · 30 min\nInvite: ${client && client.email || m.email || "no email on file yet"}${client && client.slack.status === "live" ? ` — or post it in ${client.slack.channel || "the shared channel"}` : ""}\n\nFollowing up on our ${fmtDate(m.meeting_date)} conversation.${m.follow_up.reason ? ` ${m.follow_up.reason}` : ""}${m.campaigns.length ? `\n\nTo cover: ${m.campaigns.map(c => c.name).join(", ")}` : ""}${m.problems.length ? `\nStill outstanding: ${m.problems.join("; ")}` : ""}`), m.raw && /*#__PURE__*/React.createElement("details", {
+  }, `${m.company} — ${m.follow_up.type}\n${fmtDate(m.follow_up.due)} · Google Meet · 30 min\nInvite: ${client && primaryEmail(client) || m.email || "no email on file yet"}${client && client.slack.status === "live" ? ` — or post it in ${client.slack.channel || "the shared channel"}` : ""}\n\nFollowing up on our ${fmtDate(m.meeting_date)} conversation.${m.follow_up.reason ? ` ${m.follow_up.reason}` : ""}${m.campaigns.length ? `\n\nTo cover: ${m.campaigns.map(c => c.name).join(", ")}` : ""}${m.problems.length ? `\nStill outstanding: ${m.problems.join("; ")}` : ""}`), m.raw && /*#__PURE__*/React.createElement("details", {
     className: "mt-3"
   }, /*#__PURE__*/React.createElement("summary", {
     style: {
@@ -1132,7 +1544,7 @@ function Campaigns({
     className: "py-6"
   }, /*#__PURE__*/React.createElement(Meta, {
     color: C.inkFaint
-  }, "No campaigns yet. Mention what a partner is launching in your notes and it lands here."));
+  }, "No campaigns yet. Mention what a client is launching in your notes and it lands here."));
   return /*#__PURE__*/React.createElement("div", null, rows.map((c, i) => {
     const n = daysOut(c.launch_date);
     const live = n !== null && n <= 0;
@@ -1155,8 +1567,9 @@ function Campaigns({
       className: "min-w-0 grow"
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontFamily: SERIF,
-        fontSize: 18,
+        fontFamily: SANS,
+        fontSize: 15,
+        fontWeight: 500,
         color: C.ink
       }
     }, c.name), /*#__PURE__*/React.createElement(Meta, null, c.company, c.channels ? ` · ${c.channels}` : "", n !== null ? ` · ${live ? "live" : relLabel(n)}` : ""), c.notes && /*#__PURE__*/React.createElement("div", {
@@ -1181,7 +1594,7 @@ function Campaigns({
         whiteSpace: "pre-wrap",
         userSelect: "all"
       }
-    }, `To: ${client && client.notify || client && client.email || "no notification list set"}\nSubject: Live now — ${c.name} (${c.company})\n\n${c.name} is live as of ${fmtDate(c.launch_date)}${c.channels ? ` across ${c.channels}` : ""}.\n\nFirst weekly report follows within seven days. Anything urgent before then, reply here${client && client.slack.status === "live" ? ` or ping ${client.slack.channel || "the shared channel"}` : ""}.`), /*#__PURE__*/React.createElement("div", {
+    }, `To: ${client && emailsOf(client).join(", ") || "no email on file"}\nSubject: Live now — ${c.name} (${c.company})\n\n${c.name} is live as of ${fmtDate(c.launch_date)}${c.channels ? ` across ${c.channels}` : ""}.\n\nFirst weekly report follows within seven days. Anything urgent before then, reply here${client && client.slack.status === "live" ? ` or ping ${client.slack.channel || "the shared channel"}` : ""}.`), /*#__PURE__*/React.createElement("div", {
       className: "mt-1"
     }, /*#__PURE__*/React.createElement(Btn, {
       kind: "bare",
@@ -1215,7 +1628,7 @@ function ReportPanel({
         off_plan: str(r.off_plan) || null
       });
     } catch (e) {
-      setError(e && e.message === "no-key" ? "Add your API key at the bottom of the page first." : "Couldn't draft that. Check the numbers and try again.");
+      setError(e && e.message === "no-key" ? "Open Settings at the foot of the page and add a key." : "Couldn't draft that. Check the numbers and try again.");
     }
     setBusy(false);
   };
@@ -1267,28 +1680,278 @@ function ReportPanel({
   }, "Mark sent, reset the week"))));
 }
 
-/* ---------- one partner, all the rituals ---------- */
+/* ---------- the MSA ---------- */
+function Paperwork({
+  client,
+  setIn
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const file = client.msa.file;
+  const link = client.msa.link.trim();
+  const attach = async picked => {
+    if (!picked) return;
+    setError("");
+    if (picked.size > MAX_FILE) {
+      setError(`That file is ${prettySize(picked.size)}. Keep it under 2 MB, or use the link instead.`);
+      return;
+    }
+    setBusy(true);
+    try {
+      const dataUrl = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = () => rej(new Error("read failed"));
+        r.readAsDataURL(picked);
+      });
+      const id = uid("f");
+      await store.set(FILE_KEY(id), dataUrl);
+      if (file && file.id) {
+        try {
+          await store.delete(FILE_KEY(file.id));
+        } catch (e) {
+          /* old one may already be gone */
+        }
+      }
+      setIn("msa", {
+        file: {
+          id,
+          name: picked.name,
+          size: picked.size,
+          type: picked.type || "application/octet-stream",
+          added: todayISO()
+        }
+      });
+    } catch (e) {
+      setError("Couldn't save that file. Try a smaller one, or paste a link.");
+    }
+    setBusy(false);
+  };
+  const download = async () => {
+    if (!file) return;
+    setError("");
+    try {
+      const r = await store.get(FILE_KEY(file.id));
+      if (!r || !r.value) throw new Error("missing");
+      const a = document.createElement("a");
+      a.href = r.value;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      setError("That file isn't in storage any more. Attach it again.");
+    }
+  };
+  const remove = async () => {
+    if (!file) return;
+    try {
+      await store.delete(FILE_KEY(file.id));
+    } catch (e) {
+      /* fine either way */
+    }
+    setIn("msa", {
+      file: null
+    });
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mt-5 pt-4",
+    style: {
+      borderTop: `1px solid ${C.ruleSoft}`
+    }
+  }, /*#__PURE__*/React.createElement(Label, null, "MSA"), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-3 mt-2 sm:grid-cols-2 items-end"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Link"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: inputStyle,
+    value: client.msa.link,
+    placeholder: "Drive or Dropbox link",
+    onChange: e => setIn("msa", {
+      link: e.target.value
+    })
+  }), /^https?:\/\//i.test(link) && /*#__PURE__*/React.createElement("a", {
+    href: link,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    style: {
+      fontFamily: SANS,
+      fontSize: 12.5,
+      color: C.launch,
+      whiteSpace: "nowrap",
+      textDecoration: "underline"
+    }
+  }, "Open"))), /*#__PURE__*/React.createElement(Field, {
+    label: "Signed on"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: inputStyle,
+    value: client.msa.signed || "",
+    onChange: e => setIn("msa", {
+      signed: e.target.value || null
+    })
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "mt-3"
+  }, file ? /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Meta, {
+    color: C.ink
+  }, file.name, " · ", prettySize(file.size)), /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: download
+  }, "Download"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: remove
+  }, "Replace or remove")) : /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontFamily: SANS,
+      fontSize: 13,
+      color: C.inkSoft,
+      border: `1px solid ${C.rule}`,
+      borderRadius: 2,
+      padding: "8px 14px",
+      cursor: "pointer",
+      display: "inline-block"
+    }
+  }, busy ? "Saving…" : "Attach MSA file", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    style: {
+      display: "none"
+    },
+    onChange: e => attach(e.target.files && e.target.files[0])
+  }))), error && /*#__PURE__*/React.createElement("p", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement(Meta, {
+    color: C.late
+  }, error)), file && /*#__PURE__*/React.createElement("p", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkFaint
+  }, "Held in this browser only, so it won't follow you to another device. A link is safer for anything you need to keep.")));
+}
+
+/* ---------- this client's campaigns, editable in place ---------- */
+function ClientCampaigns({
+  rows,
+  onUpdateCampaign
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mt-5 pt-4",
+    style: {
+      borderTop: `1px solid ${C.ruleSoft}`
+    }
+  }, /*#__PURE__*/React.createElement(Label, null, "Campaigns"), rows.length === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "mt-1"
+  }, /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkFaint
+  }, "Nothing yet. Mention a campaign in your notes and it lands here.")), rows.map(c => {
+    const n = c.launch_date ? daysOut(c.launch_date) : null;
+    const live = n !== null && n <= 0;
+    const track = (c.tracking || "").trim();
+    return /*#__PURE__*/React.createElement("div", {
+      key: `${c.id}_${c.ci}`,
+      className: "py-3",
+      style: {
+        borderTop: `1px solid ${C.ruleSoft}`
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline gap-2 flex-wrap"
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: SANS,
+        fontSize: 15,
+        fontWeight: 500,
+        color: C.ink
+      }
+    }, c.name), /*#__PURE__*/React.createElement(Meta, {
+      color: live ? C.launch : n !== null && n < 7 ? C.soon : C.inkSoft
+    }, c.launch_date ? live ? `live since ${fmtDate(c.launch_date)}` : `${fmtDate(c.launch_date)} · ${relLabel(n)}` : "no launch date"), live && !c.notified && /*#__PURE__*/React.createElement(Meta, {
+      color: C.late
+    }, "notice not sent")), c.channels && /*#__PURE__*/React.createElement(Meta, null, c.channels), /*#__PURE__*/React.createElement("div", {
+      className: "grid gap-3 mt-2 sm:grid-cols-2 items-end"
+    }, /*#__PURE__*/React.createElement(Field, {
+      label: "Tracking link"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2 items-center"
+    }, /*#__PURE__*/React.createElement("input", {
+      style: inputStyle,
+      value: c.tracking || "",
+      placeholder: "https://...",
+      onChange: e => onUpdateCampaign(c.id, c.ci, {
+        tracking: e.target.value
+      })
+    }), /^https?:\/\//i.test(track) && /*#__PURE__*/React.createElement("a", {
+      href: track,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: {
+        fontFamily: SANS,
+        fontSize: 12.5,
+        color: C.launch,
+        whiteSpace: "nowrap",
+        textDecoration: "underline"
+      }
+    }, "Open"))), /*#__PURE__*/React.createElement(Field, {
+      label: "Launch date"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      style: inputStyle,
+      value: c.launch_date || "",
+      onChange: e => onUpdateCampaign(c.id, c.ci, {
+        launch_date: e.target.value || null
+      })
+    }))));
+  }));
+}
+function buildSummary(client, mine, due, doneCount) {
+  const live = isLive(client, mine);
+  const campaigns = mine.flatMap(m => m.campaigns.map(c => `— ${c.name}${c.launch_date ? `, ${daysOut(c.launch_date) <= 0 ? "live since" : "launches"} ${fmtDate(c.launch_date)}` : ", no date yet"}${c.channels ? ` (${c.channels})` : ""}`));
+  const openIssues = client.issues.filter(i => i.status !== "resolved");
+  const todos = mine.flatMap(m => m.action_items.filter(a => !a.done && a.owner === "me"));
+  const last = mine.length ? mine[0] : null;
+  return [`${client.company} — status as of ${fmtDate(todayISO())}`, ``, `${live ? "Live" : "Not live"} · onboarding ${doneCount}/${KICKOFF.length} · ${client.kickoff.date ? `kicked off ${fmtDate(client.kickoff.date)}` : "no kick-off date"}`, client.slack.status === "live" ? `Shared channel: ${client.slack.channel || "open"}` : (client.slack.note || "").trim() ? `Talking via: ${client.slack.note}` : `No shared channel yet`, client.reporting.on ? `Weekly report: ${client.reporting.lastSent ? `last sent ${fmtDate(client.reporting.lastSent)}, ` : ""}next ${relLabel(due.report === null ? null : daysOut(due.report))}` : `Weekly reporting paused`, campaigns.length ? `\nCampaigns\n${campaigns.join("\n")}` : `\nNo campaigns logged`, todos.length ? `\nOn me\n${todos.map(t => `— ${t.what}`).join("\n")}` : "", openIssues.length ? `\nOpen issues\n${openIssues.map(i => `— ${i.what}`).join("\n")}` : "", last ? `\nLast met ${fmtDate(last.meeting_date)}${last.summary ? `. ${last.summary}` : ""}` : ""].filter(l => l !== "").join("\n");
+}
+
+/* ---------- one client, all the rituals ---------- */
 function PartnerCard({
   client,
   meetings,
   firstSeen,
   expanded,
   onExpand,
-  onUpdate
+  onUpdate,
+  onDelete,
+  onUpdateCampaign,
+  onToggleAction,
+  onDeleteMeeting
 }) {
   const [issue, setIssue] = useState({
     what: "",
     tried: "",
     owner: ""
   });
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [summaryText, setSummaryText] = useState("");
+  const [copied, setCopied] = useState("");
   const key = client.company.toLowerCase();
   const mine = meetings.filter(m => m.company.toLowerCase() === key);
   const due = clientDue(client, firstSeen[key]);
   const reportN = due.report === null ? null : daysOut(due.report);
-  const checkinN = daysOut(due.checkin);
   const doneCount = KICKOFF.filter(k => client.kickoff.checklist[k.id]).length;
   const campaignNames = mine.flatMap(m => m.campaigns.map(c => `${c.name}${c.launch_date ? ` (live ${fmtDate(c.launch_date)})` : ""}`)).slice(0, 6);
   const openIssues = client.issues.filter(i => i.status !== "resolved").length;
+  const markReportSent = report => setIn("reporting", {
+    lastSent: todayISO(),
+    lastReport: report || client.reporting.lastReport,
+    sent: [...(client.reporting.sent || []).filter(d => d !== todayISO()), todayISO()]
+  });
+  const campaignRows = mine.flatMap(m => m.campaigns.map((c, ci) => ({
+    ...c,
+    id: m.id,
+    ci
+  })));
   const set = patch => onUpdate(client.company, patch);
   const setIn = (field, patch) => set({
     [field]: {
@@ -1297,20 +1960,28 @@ function PartnerCard({
     }
   });
   return /*#__PURE__*/React.createElement("div", {
-    className: "py-4",
     style: {
-      borderTop: `1px solid ${C.rule}`
+      padding: "16px 0",
+      borderBottom: `1px solid ${C.ruleSoft}`
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-baseline gap-3 flex-wrap cursor-pointer",
     onClick: () => onExpand(expanded ? null : key)
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      fontFamily: SERIF,
-      fontSize: 21,
+      fontFamily: SANS,
+      fontSize: 16.5,
+      fontWeight: 500,
       color: C.ink
     }
-  }, client.company), /*#__PURE__*/React.createElement(Meta, null, mine.length, " meeting", mine.length === 1 ? "" : "s"), /*#__PURE__*/React.createElement("span", {
+  }, client.company), /*#__PURE__*/React.createElement(LivePill, {
+    live: isLive(client, mine),
+    onToggle: v => set({
+      live: v
+    })
+  }), /*#__PURE__*/React.createElement(Meta, {
+    color: client.kickoff.date ? C.inkSoft : C.late
+  }, client.kickoff.date ? `kicked off ${fmtDate(client.kickoff.date)}` : "no kick-off date"), /*#__PURE__*/React.createElement(Meta, null, mine.length, " meeting", mine.length === 1 ? "" : "s"), /*#__PURE__*/React.createElement("span", {
     className: "grow"
   }), !client.kickoff.done && /*#__PURE__*/React.createElement(Meta, {
     color: C.late
@@ -1322,34 +1993,48 @@ function PartnerCard({
     color: urgencyColor(reportN)
   }, due.report ? `report ${relLabel(reportN)}` : "reporting off")), !expanded && /*#__PURE__*/React.createElement("p", {
     className: "mt-1"
-  }, /*#__PURE__*/React.createElement(Meta, null, client.email || "no email yet", " · kick-off ", doneCount, "/", KICKOFF.length, " · check-in", " ", relLabel(checkinN))), expanded && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Meta, null, emailLine(client), " · checklist ", doneCount, "/", KICKOFF.length, client.msa.file || client.msa.link ? " · MSA on file" : "")), expanded && /*#__PURE__*/React.createElement("div", {
     className: "mt-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid gap-3 sm:grid-cols-2"
   }, /*#__PURE__*/React.createElement(Field, {
-    label: "Main contact email"
+    label: "Contact emails"
+  }, /*#__PURE__*/React.createElement("div", null, (client.emails.length ? client.emails : [""]).map((addr, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "flex gap-2 items-center mb-2"
   }, /*#__PURE__*/React.createElement("input", {
     style: inputStyle,
-    value: client.email,
-    placeholder: "name@company.com",
-    onChange: e => set({
-      email: e.target.value
+    value: addr,
+    placeholder: i === 0 ? "name@company.com" : "another address",
+    onChange: e => {
+      const next = client.emails.length ? [...client.emails] : [""];
+      next[i] = e.target.value;
+      set({
+        emails: next
+      });
+    }
+  }), client.emails.length > 1 && /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => set({
+      emails: client.emails.filter((_, j) => j !== i)
     })
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "Go-live notification list"
-  }, /*#__PURE__*/React.createElement("input", {
-    style: inputStyle,
-    value: client.notify,
-    placeholder: "who gets the email when a campaign goes live",
-    onChange: e => set({
-      notify: e.target.value
+  }, "Remove"))), /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => set({
+      emails: [...(client.emails.length ? client.emails : [""]), ""]
     })
-  }))), /*#__PURE__*/React.createElement("div", {
+  }, "Add another email")))), /*#__PURE__*/React.createElement(ClientCampaigns, {
+    rows: campaignRows,
+    onUpdateCampaign: onUpdateCampaign
+  }), /*#__PURE__*/React.createElement(Paperwork, {
+    client: client,
+    setIn: setIn
+  }), /*#__PURE__*/React.createElement("div", {
     className: "mt-5 pt-4",
     style: {
       borderTop: `1px solid ${C.ruleSoft}`
     }
-  }, /*#__PURE__*/React.createElement(Meta, null, "Shared Slack channel"), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Label, null, "Shared Slack channel"), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-3 mt-2 sm:grid-cols-2 items-end"
   }, /*#__PURE__*/React.createElement(Choice, {
     size: 12.5,
@@ -1361,11 +2046,22 @@ function PartnerCard({
   }), /*#__PURE__*/React.createElement("input", {
     style: inputStyle,
     value: client.slack.channel,
-    placeholder: "#cf-partnername",
+    placeholder: "#cf-clientname",
     onChange: e => setIn("slack", {
       channel: e.target.value
     })
-  }))), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "mt-3"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "If you talk somewhere else, say where"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: inputStyle,
+    value: client.slack.note || "",
+    placeholder: "e.g. email only, Teams, WhatsApp group, their own Slack",
+    onChange: e => setIn("slack", {
+      note: e.target.value
+    })
+  })))), /*#__PURE__*/React.createElement("div", {
     className: "mt-5 pt-4",
     style: {
       borderTop: `1px solid ${C.ruleSoft}`
@@ -1398,6 +2094,8 @@ function PartnerCard({
       accentColor: C.ok
     }
   }), /*#__PURE__*/React.createElement("span", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("span", {
     style: {
       fontFamily: SANS,
       fontSize: 13.5,
@@ -1405,7 +2103,15 @@ function PartnerCard({
       color: client.kickoff.checklist[k.id] ? C.inkFaint : C.ink,
       textDecoration: client.kickoff.checklist[k.id] ? "line-through" : "none"
     }
-  }, k.label)))), /*#__PURE__*/React.createElement("div", {
+  }, k.label), k.hint && /*#__PURE__*/React.createElement("span", {
+    className: "block",
+    style: {
+      fontFamily: SANS,
+      fontSize: 12,
+      color: C.inkFaint,
+      lineHeight: 1.45
+    }
+  }, k.hint))))), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-3 mt-3 sm:grid-cols-2 items-end"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Kick-off date"
@@ -1432,7 +2138,7 @@ function PartnerCard({
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-baseline gap-3 flex-wrap"
-  }, /*#__PURE__*/React.createElement(Meta, null, "Weekly reporting"), /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement(Label, null, "Weekly reporting"), /*#__PURE__*/React.createElement("span", {
     className: "grow"
   }), /*#__PURE__*/React.createElement(Meta, {
     color: urgencyColor(reportN)
@@ -1452,45 +2158,28 @@ function PartnerCard({
     onChange: v => setIn("reporting", {
       on: v === "on"
     })
-  })), client.reporting.on && /*#__PURE__*/React.createElement(ReportPanel, {
+  })), client.reporting.on && /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap mt-3"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    onClick: () => markReportSent(null)
+  }, "Mark this week's report sent"), (client.reporting.sent || []).length > 0 && /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkFaint
+  }, (client.reporting.sent || []).length, " sent so far")), client.reporting.on && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 p-3",
+    style: {
+      background: C.paper,
+      borderLeft: `3px solid ${C.ink}`
+    }
+  }, /*#__PURE__*/React.createElement(Body, null, reportN !== null && reportN <= 0 ? `${client.company}'s weekly report is due ${reportN === 0 ? "today" : `and ${relLabel(reportN)}`}. Send it out.` : `You're on the hook for ${client.company}'s weekly report every 7 days. Next one ${relLabel(reportN)}, on ${fmtDate(due.report)}.`)), client.reporting.on && /*#__PURE__*/React.createElement(ReportPanel, {
     client: client,
     campaigns: campaignNames,
-    onSent: report => setIn("reporting", {
-      lastSent: todayISO(),
-      lastReport: report
-    })
+    onSent: markReportSent
   })), /*#__PURE__*/React.createElement("div", {
     className: "mt-5 pt-4",
     style: {
       borderTop: `1px solid ${C.ruleSoft}`
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-baseline gap-3 flex-wrap"
-  }, /*#__PURE__*/React.createElement(Meta, null, "Check-in cadence"), /*#__PURE__*/React.createElement("span", {
-    className: "grow"
-  }), /*#__PURE__*/React.createElement(Meta, {
-    color: urgencyColor(checkinN)
-  }, client.checkin.last ? `last ${fmtDate(client.checkin.last)} · ` : "", "next ", relLabel(checkinN))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-3 mt-2 flex-wrap items-center"
-  }, /*#__PURE__*/React.createElement(Choice, {
-    size: 12.5,
-    tone: C.ink,
-    options: CADENCES,
-    value: client.checkin.cadence,
-    onChange: v => setIn("checkin", {
-      cadence: v
-    })
-  }), /*#__PURE__*/React.createElement(Btn, {
-    kind: "bare",
-    onClick: () => setIn("checkin", {
-      last: todayISO()
-    })
-  }, "Log one today"))), /*#__PURE__*/React.createElement("div", {
-    className: "mt-5 pt-4",
-    style: {
-      borderTop: `1px solid ${C.ruleSoft}`
-    }
-  }, /*#__PURE__*/React.createElement(Meta, null, "When it doesn’t go to plan"), client.issues.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Label, null, "When it doesn’t go to plan"), client.issues.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "mt-2"
   }, client.issues.map(it => /*#__PURE__*/React.createElement("div", {
     key: it.id,
@@ -1572,28 +2261,619 @@ function PartnerCard({
         owner: ""
       });
     }
-  }, "Log the issue")))));
-}
-
-/* ---------- api key, only when running as a plain web page ---------- */
-function KeyBox() {
-  const [key, setKey] = useState(readKey());
-  const [saved, setSaved] = useState(false);
-  if (inClaude) return null;
-  return /*#__PURE__*/React.createElement("div", {
+  }, "Log the issue"))), /*#__PURE__*/React.createElement("div", {
+    className: "mt-5 pt-4",
+    style: {
+      borderTop: `1px solid ${C.ruleSoft}`
+    }
+  }, /*#__PURE__*/React.createElement(Label, null, "Meetings"), mine.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "mt-1"
+  }, /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkFaint
+  }, "Nothing filed for this client yet.")) : mine.map(m => /*#__PURE__*/React.createElement(LogEntry, {
+    key: m.id,
+    m: m,
+    client: client,
+    onToggleAction: onToggleAction,
+    onDelete: onDeleteMeeting
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "mt-5 pt-4",
+    style: {
+      borderTop: `1px solid ${C.ruleSoft}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    onClick: async () => {
+      const text = buildSummary(client, mine, due, doneCount);
+      setSummaryText(text);
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopied("Copied to your clipboard.");
+      } catch (e) {
+        setCopied("Select the text below and copy it.");
+      }
+    }
+  }, "Copy status summary"), copied && /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkSoft
+  }, copied)), summaryText && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 p-3",
+    style: {
+      background: C.paper,
+      border: `1px dashed ${C.rule}`,
+      fontFamily: SANS,
+      fontSize: 13,
+      color: C.ink,
+      lineHeight: 1.6,
+      whiteSpace: "pre-wrap",
+      userSelect: "all"
+    }
+  }, summaryText)), /*#__PURE__*/React.createElement("div", {
     className: "mt-6 pt-4",
     style: {
       borderTop: `1px solid ${C.ruleSoft}`
     }
+  }, confirmDelete ? /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 flex-wrap items-center"
+  }, /*#__PURE__*/React.createElement(Meta, {
+    color: C.late
+  }, "Remove ", client.company, " and ", mine.length, " filed meeting", mine.length === 1 ? "" : "s", "? This can't be undone."), /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => onDelete(client.company)
+  }, "Yes, remove"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => setConfirmDelete(false)
+  }, "Keep them")) : /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => setConfirmDelete(true)
+  }, "Remove this client"))));
+}
+
+/* ---------- calendar ---------- */
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+function Calendar({
+  meetings,
+  clients,
+  firstSeen,
+  events,
+  onJump,
+  onDone,
+  onNotified,
+  onReportSent
+}) {
+  const narrow = useNarrow(640);
+  const today = parseISO(todayISO());
+  const [cursor, setCursor] = useState({
+    y: today.getFullYear(),
+    m: today.getMonth()
+  });
+  const [picked, setPicked] = useState(todayISO());
+  const grid = useMemo(() => {
+    const first = new Date(cursor.y, cursor.m, 1);
+    /* weeks start Monday */
+    const lead = (first.getDay() + 6) % 7;
+    const start = new Date(cursor.y, cursor.m, 1 - lead);
+    const cells = [];
+    for (let i = 0; i < 42; i += 1) {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      cells.push({
+        iso: iso(d),
+        inMonth: d.getMonth() === cursor.m,
+        day: d.getDate()
+      });
+    }
+    /* trim a trailing all-blank week */
+    return cells.slice(0, cells.slice(35).some(c => c.inMonth) ? 42 : 35);
+  }, [cursor]);
+  const byDay = useMemo(() => {
+    if (!grid.length) return {};
+    const items = buildAgenda({
+      meetings,
+      clients,
+      firstSeen,
+      events,
+      fromISO: grid[0].iso,
+      toISO: grid[grid.length - 1].iso,
+      repeat: true
+    });
+    const out = {};
+    items.forEach(it => {
+      if (!it.date) return;
+      out[it.date] = out[it.date] || [];
+      out[it.date].push(it);
+    });
+    return out;
+  }, [grid, meetings, clients, firstSeen, events]);
+  const meetingsByDay = useMemo(() => {
+    const out = {};
+    meetings.forEach(m => {
+      out[m.meeting_date] = out[m.meeting_date] || [];
+      out[m.meeting_date].push(m);
+    });
+    return out;
+  }, [meetings]);
+  const step = delta => {
+    const d = new Date(cursor.y, cursor.m + delta, 1);
+    setCursor({
+      y: d.getFullYear(),
+      m: d.getMonth()
+    });
+  };
+  const dayItems = byDay[picked] || [];
+  const dayMeetings = meetingsByDay[picked] || [];
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-3 py-3 flex-wrap"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: SANS,
+      fontSize: 16,
+      fontWeight: 500,
+      color: C.ink
+    }
+  }, MONTHS[cursor.m], " ", cursor.y), /*#__PURE__*/React.createElement("span", {
+    className: "grow"
+  }), /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => step(-1)
+  }, "‹ Previous"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => {
+      setCursor({
+        y: today.getFullYear(),
+        m: today.getMonth()
+      });
+      setPicked(todayISO());
+    }
+  }, "Today"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => step(1)
+  }, "Next ›")), narrow ? /*#__PURE__*/React.createElement("div", null, grid.filter(cell => cell.inMonth).filter(cell => (byDay[cell.iso] || []).length || (meetingsByDay[cell.iso] || []).length).map(cell => {
+    const items = byDay[cell.iso] || [];
+    const d = parseISO(cell.iso);
+    return /*#__PURE__*/React.createElement("div", {
+      key: cell.iso,
+      onClick: () => setPicked(cell.iso),
+      className: "flex gap-3 py-3 cursor-pointer",
+      style: {
+        borderBottom: `1px solid ${C.ruleSoft}`
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "shrink-0",
+      style: {
+        width: 42,
+        textAlign: "right"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: SERIF,
+        fontSize: 19,
+        lineHeight: 1,
+        color: cell.iso === todayISO() ? C.late : C.ink
+      }
+    }, cell.day), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: SANS,
+        fontSize: 11,
+        color: C.inkFaint,
+        marginTop: 3
+      }
+    }, d ? d.toLocaleDateString(undefined, {
+      weekday: "short"
+    }) : "")), /*#__PURE__*/React.createElement("div", {
+      className: "min-w-0"
+    }, items.map((it, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        fontFamily: SANS,
+        fontSize: 13.5,
+        color: it.done ? C.inkFaint : C.ink,
+        textDecoration: it.done ? "line-through" : "none"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: KIND_TONE[it.kind],
+        textDecoration: "none"
+      }
+    }, KIND_WORD[it.kind]), " ", "· ", it.label)), (meetingsByDay[cell.iso] || []).map(m => /*#__PURE__*/React.createElement(Meta, {
+      key: m.id,
+      color: C.inkFaint
+    }, "met ", m.company))));
+  }), grid.filter(c => c.inMonth).every(c => !(byDay[c.iso] || []).length && !(meetingsByDay[c.iso] || []).length) && /*#__PURE__*/React.createElement("p", {
+    className: "py-4"
+  }, /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkFaint
+  }, "Nothing in this month."))) : /*#__PURE__*/React.createElement("div", {
+    className: "grid",
+    style: {
+      gridTemplateColumns: "repeat(7, minmax(0, 1fr))"
+    }
+  }, DOW.map(d => /*#__PURE__*/React.createElement("div", {
+    key: d,
+    className: "pb-1",
+    style: {
+      borderBottom: `1px solid ${C.rule}`
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: SANS,
+      fontSize: 11,
+      color: C.inkFaint
+    }
+  }, d))), grid.map(cell => {
+    const items = byDay[cell.iso] || [];
+    const mtgs = meetingsByDay[cell.iso] || [];
+    const isToday = cell.iso === todayISO();
+    const isPicked = cell.iso === picked;
+    return /*#__PURE__*/React.createElement("div", {
+      key: cell.iso,
+      onClick: () => setPicked(cell.iso),
+      className: "p-1 cursor-pointer",
+      style: {
+        minHeight: 74,
+        borderBottom: `1px solid ${C.ruleSoft}`,
+        borderRight: `1px solid ${C.ruleSoft}`,
+        background: isPicked ? C.paper : "transparent",
+        opacity: cell.inMonth ? 1 : 0.35,
+        boxShadow: isToday ? `inset 0 0 0 1px ${C.ink}` : "none"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: SANS,
+        fontSize: 12,
+        color: isToday ? C.ink : C.inkSoft,
+        fontWeight: isToday ? 600 : 400
+      }
+    }, cell.day), items.slice(0, 2).map((it, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      className: "mt-1 flex items-center gap-1",
+      style: {
+        overflow: "hidden"
+      },
+      title: `${KIND_WORD[it.kind]} — ${it.label}`
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 5,
+        height: 5,
+        borderRadius: 999,
+        background: KIND_TONE[it.kind],
+        flexShrink: 0
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: SANS,
+        fontSize: 10.5,
+        color: it.done ? C.inkFaint : C.inkSoft,
+        textDecoration: it.done ? "line-through" : "none",
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+        textOverflow: "ellipsis"
+      }
+    }, it.label))), items.length > 2 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: SANS,
+        fontSize: 10,
+        color: C.inkSoft,
+        paddingLeft: 2
+      }
+    }, "+", items.length - 2, " more"), mtgs.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: SANS,
+        fontSize: 10,
+        color: C.inkFaint,
+        paddingLeft: 2
+      }
+    }, mtgs.length, " met"));
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "mt-5 pt-3",
+    style: {
+      borderTop: `1px solid ${C.rule}`
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: SANS,
+      fontSize: 15,
+      fontWeight: 500,
+      color: C.ink
+    }
+  }, fmtDate(picked)), dayItems.length === 0 && dayMeetings.length === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "mt-1"
+  }, /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkFaint
+  }, "Nothing on this day.")), dayItems.map((it, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "flex gap-3 py-2",
+    style: {
+      borderTop: `1px solid ${C.ruleSoft}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "shrink-0",
+    style: {
+      width: 3,
+      background: KIND_TONE[it.kind],
+      borderRadius: 2
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 grow"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-2 flex-wrap"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: SERIF,
+      fontSize: 16.5,
+      color: C.ink
+    }
+  }, it.label), /*#__PURE__*/React.createElement(Meta, {
+    color: KIND_TONE[it.kind]
+  }, KIND_WORD[it.kind])), /*#__PURE__*/React.createElement(Meta, null, it.detail), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1 mt-1 flex-wrap"
+  }, it.key && /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => onJump(it.key)
+  }, "Open client"), it.kind === "follow" && /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => onDone(it.id)
+  }, "Done"), it.kind === "report" && /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => onReportSent(it.key, it.date)
+  }, "Done"), it.kind === "notify" && /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => onNotified(it.id, it.ci)
+  }, "Notice sent"))))), dayMeetings.map(m => /*#__PURE__*/React.createElement("div", {
+    key: m.id,
+    className: "py-2",
+    style: {
+      borderTop: `1px solid ${C.ruleSoft}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-2 flex-wrap"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: SERIF,
+      fontSize: 16.5,
+      color: C.ink
+    }
+  }, m.company), /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkFaint
+  }, "met — ", m.kind === "kickoff" ? "kick-off" : m.kind === "checkin" ? "check-in" : "call")), m.summary && /*#__PURE__*/React.createElement(Meta, null, m.summary)))), /*#__PURE__*/React.createElement("p", {
+    className: "mt-4"
+  }, /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkFaint
+  }, "Weekly reports and check-ins repeat forward from their last one, so future months show the rhythm rather than a single date.")));
+}
+
+/* ---------- add a list of clients at once ---------- */
+const SEED_CLIENTS = `Drummer Records
+FOMO
+Trailblazers Podcast
+Betr
+Goli
+Ramp
+Topps
+The Cap Table
+Looksmaxxing / Clavicular
+Unwell
+James Keena
+Gurudev
+Perplexity
+Higgsfield
+Bumble
+Pippit AI
+vertTV
+BOXED
+ATC
+John Malek
+Jesser
+Arena Club
+Jake Paul
+Ridge
+Boxabl
+Nick Malinosky
+Liftly
+Cantina`;
+function AddClients({
+  clients,
+  onAdd
+}) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(SEED_CLIENTS);
+  const [note, setNote] = useState("");
+  const names = text.split("\n").map(l => l.trim()).filter(Boolean).filter(l => !/^(client|total)$/i.test(l));
+  const fresh = names.filter((n, i) => !clients[n.toLowerCase()] && names.findIndex(m => m.toLowerCase() === n.toLowerCase()) === i);
+  if (!open) return /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => setOpen(true)
+  }, "Add clients in bulk");
+  return /*#__PURE__*/React.createElement("div", {
+    className: "p-4",
+    style: {
+      background: C.paper,
+      borderRadius: 4
+    }
+  }, /*#__PURE__*/React.createElement(Label, null, "Add clients in bulk"), /*#__PURE__*/React.createElement("p", {
+    className: "mt-1"
+  }, /*#__PURE__*/React.createElement(Body, {
+    color: C.inkSoft
+  }, "One name per line. Anything already on your list is skipped, so you can paste the same sheet again later without making duplicates.")), /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...inputStyle,
+      minHeight: 150,
+      lineHeight: 1.5,
+      marginTop: 10,
+      resize: "vertical"
+    },
+    value: text,
+    onChange: e => {
+      setText(e.target.value);
+      setNote("");
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-2 items-center flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "solid",
+    disabled: !fresh.length,
+    onClick: () => {
+      onAdd(fresh);
+      setNote(`Added ${fresh.length}. Skipped ${names.length - fresh.length} already on the list.`);
+      setText("");
+    }
+  }, fresh.length ? `Add ${fresh.length} client${fresh.length === 1 ? "" : "s"}` : "Nothing new to add"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: () => setOpen(false)
+  }, "Close"), note && /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkSoft
+  }, note)));
+}
+
+/* ---------- backup ---------- */
+function Backup({
+  meetings,
+  clients,
+  onImport
+}) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const [confirming, setConfirming] = useState(null);
+  const exportAll = async () => {
+    setBusy(true);
+    setNote("");
+    try {
+      const files = {};
+      for (const c of Object.values(clients)) {
+        const f = c.msa && c.msa.file;
+        if (!f || !f.id) continue;
+        try {
+          const r = await store.get(FILE_KEY(f.id));
+          if (r && r.value) files[f.id] = r.value;
+        } catch (e) {
+          /* attachment already gone */
+        }
+      }
+      const blob = new Blob([JSON.stringify({
+        version: 2,
+        exported: todayISO(),
+        meetings,
+        clients,
+        files
+      }, null, 2)], {
+        type: "application/json"
+      });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `cf-clients-backup-${todayISO()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      setNote("Backup saved to your downloads.");
+    } catch (e) {
+      setNote("Couldn't build the backup.");
+    }
+    setBusy(false);
+  };
+  const readFile = async picked => {
+    if (!picked) return;
+    setNote("");
+    try {
+      const text = await picked.text();
+      const data = JSON.parse(text);
+      if (!Array.isArray(data.meetings) || typeof data.clients !== "object") throw new Error("shape");
+      setConfirming(data);
+    } catch (e) {
+      setNote("That file isn't a backup from this app.");
+    }
+  };
+  const applyImport = async () => {
+    const data = confirming;
+    setConfirming(null);
+    setBusy(true);
+    try {
+      for (const [id, value] of Object.entries(data.files || {})) {
+        try {
+          await store.set(FILE_KEY(id), value);
+        } catch (e) {
+          /* skip an attachment that won't fit */
+        }
+      }
+      await onImport(data);
+      setNote("Backup restored.");
+    } catch (e) {
+      setNote("Couldn't restore that backup.");
+    }
+    setBusy(false);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mt-8 pt-4",
+    style: {
+      borderTop: `1px solid ${C.ruleSoft}`
+    }
+  }, /*#__PURE__*/React.createElement(Label, null, "Backup"), /*#__PURE__*/React.createElement("p", {
+    className: "mt-1"
+  }, /*#__PURE__*/React.createElement(Body, {
+    color: C.inkSoft
+  }, "Everything here lives in this browser only. Clear your browsing data and it goes with it, so export a copy now and then — that file is also how you move records to another computer.")), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-2 flex-wrap items-center"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    onClick: busy ? undefined : exportAll,
+    disabled: busy
+  }, busy ? "Working…" : "Export a backup"), /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontFamily: SANS,
+      fontSize: 13,
+      color: C.inkSoft,
+      border: `1px solid ${C.rule}`,
+      borderRadius: 2,
+      padding: "8px 14px",
+      cursor: "pointer"
+    }
+  }, "Restore from a backup", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: "application/json,.json",
+    style: {
+      display: "none"
+    },
+    onChange: e => readFile(e.target.files && e.target.files[0])
+  })), note && /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkSoft
+  }, note)), confirming && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 p-3",
+    style: {
+      background: C.surface,
+      borderLeft: `3px solid ${C.late}`
+    }
+  }, /*#__PURE__*/React.createElement(Body, null, "That backup holds ", confirming.meetings.length, " meeting", confirming.meetings.length === 1 ? "" : "s", " and", " ", Object.keys(confirming.clients).length, " client", Object.keys(confirming.clients).length === 1 ? "" : "s", ", from", " ", confirming.exported ? fmtDate(confirming.exported) : "an unknown date", ". Restoring replaces everything currently here."), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-2 flex-wrap"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "solid",
+    onClick: applyImport
+  }, "Replace everything"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: () => setConfirming(null)
+  }, "Cancel"))));
+}
+function Settings() {
+  const [open, setOpen] = useState(false);
+  const [key, setKey] = useState(readKey());
+  const [saved, setSaved] = useState(false);
+  if (inClaude) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mt-8"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => setOpen(!open)
+  }, open ? "Close settings" : "Settings"), open && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 p-4",
+    style: {
+      background: C.surface,
+      border: `1px solid ${C.rule}`
+    }
   }, /*#__PURE__*/React.createElement(Field, {
-    label: "Your Anthropic API key"
+    label: "Anthropic API key"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap items-center"
   }, /*#__PURE__*/React.createElement("input", {
     type: "password",
     style: {
       ...inputStyle,
-      maxWidth: 340
+      maxWidth: 330
     },
     value: key,
     placeholder: "sk-ant-...",
@@ -1610,25 +2890,32 @@ function KeyBox() {
         setSaved(false);
       }
     }
-  }, "Save key"), saved && /*#__PURE__*/React.createElement(Meta, {
+  }, "Save"), saved && /*#__PURE__*/React.createElement(Meta, {
     color: C.ok
   }, "Saved"))), /*#__PURE__*/React.createElement("p", {
     className: "mt-2"
-  }, /*#__PURE__*/React.createElement(Meta, {
-    color: C.inkFaint
-  }, "Needed for sorting notes and drafting reports. It stays in this browser and is never sent anywhere but Anthropic. Get one at console.anthropic.com.")));
+  }, /*#__PURE__*/React.createElement(Body, {
+    color: C.inkSoft
+  }, "Only needed for sorting notes and drafting reports. Everything else works without it. The key stays in this browser and goes nowhere but Anthropic."))));
 }
 
 /* ---------- app ---------- */
 function MeetingLog() {
   const [meetings, setMeetings] = useState([]);
   const [clients, setClients] = useState({});
+  const [events, setEvents] = useState([]);
+  const [synced, setSynced] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("log");
-  const [newest, setNewest] = useState(null);
+  const [tab, setTab] = useState("up");
   const [openClient, setOpenClient] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [query, setQuery] = useState("");
+  const [theme, setTheme] = useState("light");
+  const [sortBy, setSortBy] = useState("attention");
   const [saveError, setSaveError] = useState("");
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
   useEffect(() => {
     (async () => {
       let loaded = null;
@@ -1650,6 +2937,20 @@ function MeetingLog() {
           /* nothing to migrate */
         }
       }
+      if (!loaded || Array.isArray(loaded.meetings) && !loaded.meetings.length && (!loaded.clients || !Object.keys(loaded.clients).length)) {
+        const seeded = seededClients(SEED_CLIENTS);
+        setClients(seeded);
+        try {
+          await store.set(KEY, JSON.stringify({
+            meetings: [],
+            clients: seeded
+          }));
+        } catch (e) {
+          /* it still works in memory if saving fails */
+        }
+        setLoading(false);
+        return;
+      }
       if (loaded) {
         const ms = arr(loaded.meetings).map(m => ({
           ...m,
@@ -1657,6 +2958,7 @@ function MeetingLog() {
           problems: arr(m.problems),
           campaigns: arr(m.campaigns).map(c => ({
             ...c,
+            tracking: str(c.tracking),
             notified: !!c.notified
           }))
         }));
@@ -1667,22 +2969,40 @@ function MeetingLog() {
         ms.forEach(m => {
           const k = m.company.toLowerCase();
           if (!cs[k]) cs[k] = hydrateClient({
-            email: m.email
+            emails: [m.email].filter(Boolean)
           }, m.company);
         });
         setMeetings(ms);
         setClients(cs);
+        setEvents(arr(loaded.events));
+        if (loaded.theme === "dark" || loaded.theme === "light") {
+          applyTheme(loaded.theme);
+          setTheme(loaded.theme);
+        }
+        setSynced(loaded.synced || null);
       }
       setLoading(false);
     })();
   }, []);
-  const persist = async (nextMeetings, nextClients = clients) => {
+  const persist = async (nextMeetings, nextClients = clients, extra = {}) => {
     setMeetings(nextMeetings);
     setClients(nextClients);
+    const nextTheme = extra.theme !== undefined ? extra.theme : theme;
+    if (extra.theme !== undefined) {
+      applyTheme(nextTheme);
+      setTheme(nextTheme);
+    }
+    const nextEvents = extra.events !== undefined ? extra.events : events;
+    const nextSynced = extra.synced !== undefined ? extra.synced : synced;
+    if (extra.events !== undefined) setEvents(nextEvents);
+    if (extra.synced !== undefined) setSynced(nextSynced);
     try {
       await store.set(KEY, JSON.stringify({
         meetings: nextMeetings,
-        clients: nextClients
+        clients: nextClients,
+        events: nextEvents,
+        synced: nextSynced,
+        theme: nextTheme
       }));
       setSaveError("");
     } catch (e) {
@@ -1700,13 +3020,12 @@ function MeetingLog() {
     return out;
   }, [meetings]);
   const onFiled = m => {
-    setNewest(m.id);
     const k = m.company.toLowerCase();
     const prev = clients[k] || blankClient(m.company);
     const next = {
       ...prev,
       company: m.company,
-      email: m.email || prev.email,
+      emails: m.email && !emailsOf(prev).includes(m.email) ? [...emailsOf(prev), m.email] : emailsOf(prev),
       kickoff: m.kind === "kickoff" && !prev.kickoff.date ? {
         ...prev.kickoff,
         date: m.meeting_date
@@ -1728,7 +3047,8 @@ function MeetingLog() {
       ...clients,
       [k]: next
     });
-    setTab("log");
+    setTab("clients");
+    setOpenClient(k);
   };
   const onUpdateClient = (company, patch) => {
     const k = company.toLowerCase();
@@ -1770,8 +3090,69 @@ function MeetingLog() {
     } : c)
   } : m));
   const onDelete = id => persist(meetings.filter(m => m.id !== id));
+  const onUpdateCampaign = (id, ci, patch) => persist(meetings.map(m => m.id === id ? {
+    ...m,
+    campaigns: m.campaigns.map((c, j) => j === ci ? {
+      ...c,
+      ...patch
+    } : c)
+  } : m));
+  /* records against the date shown, so the entry crosses off where you clicked it */
+  const onReportSent = (key, dateISO) => {
+    const c = clients[key];
+    if (!c) return;
+    const when = dateISO || todayISO();
+    persist(meetings, {
+      ...clients,
+      [key]: {
+        ...c,
+        reporting: {
+          ...c.reporting,
+          lastSent: when,
+          sent: [...(c.reporting.sent || []).filter(d => d !== when), when]
+        }
+      }
+    });
+  };
+  const onAddClients = names => {
+    const next = {
+      ...clients
+    };
+    names.forEach(n => {
+      const k = n.toLowerCase();
+      if (!next[k]) next[k] = blankClient(n);
+    });
+    persist(meetings, next);
+  };
+  const onDeleteClient = company => {
+    const k = company.toLowerCase();
+    const nextClients = {
+      ...clients
+    };
+    delete nextClients[k];
+    if (openClient === k) setOpenClient(null);
+    persist(meetings.filter(m => m.company.toLowerCase() !== k), nextClients);
+  };
+  const onImport = async data => {
+    const cs = {};
+    Object.keys(data.clients || {}).forEach(k => {
+      cs[k] = hydrateClient(data.clients[k]);
+    });
+    const ms = arr(data.meetings).map(m => ({
+      ...m,
+      kind: m.kind || "call",
+      problems: arr(m.problems),
+      campaigns: arr(m.campaigns).map(c => ({
+        ...c,
+        tracking: str(c.tracking),
+        notified: !!c.notified
+      }))
+    }));
+    setOpenClient(null);
+    await persist(ms, cs);
+  };
   const jump = key => {
-    setTab("partners");
+    setTab("clients");
     setOpenClient(key);
   };
   const attention = useMemo(() => {
@@ -1785,12 +3166,38 @@ function MeetingLog() {
     Object.values(clients).forEach(c => {
       const due = clientDue(c, firstSeen[c.company.toLowerCase()]);
       if (due.report && daysOut(due.report) <= 0) n += 1;
-      if (daysOut(due.checkin) <= 0) n += 1;
       if (!c.kickoff.done) n += 1;
     });
     return n;
   }, [meetings, clients, firstSeen]);
-  const partnerList = useMemo(() => Object.values(clients).sort((a, b) => a.company.localeCompare(b.company)), [clients]);
+  const reportsDue = useMemo(() => Object.values(clients).filter(c => {
+    if (!c.reporting.on) return false;
+    const d = clientDue(c, firstSeen[c.company.toLowerCase()]).report;
+    return d && daysOut(d) <= 0;
+  }).map(c => c.company), [clients, firstSeen]);
+
+  /* who is shouting loudest: late report, kick-off open, unsent notice, open issues */
+  const attentionScore = c => {
+    let n = 0;
+    const due = clientDue(c, firstSeen[c.company.toLowerCase()]).report;
+    if (due && daysOut(due) <= 0) n += 100 + Math.min(50, Math.abs(daysOut(due)));
+    if (!c.kickoff.done) n += 40;
+    n += c.issues.filter(i => i.status !== "resolved").length * 20;
+    meetings.forEach(m => {
+      if (m.company.toLowerCase() !== c.company.toLowerCase()) return;
+      m.campaigns.forEach(cam => {
+        if (cam.launch_date && daysOut(cam.launch_date) <= 0 && !cam.notified) n += 60;
+      });
+      if (!m.follow_up.done && daysOut(m.follow_up.due) <= 0) n += 30;
+    });
+    return n;
+  };
+  const partnerList = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = Object.values(clients).filter(c => !q || c.company.toLowerCase().includes(q) || emailsOf(c).join(" ").toLowerCase().includes(q));
+    return list.sort((a, b) => sortBy === "az" ? a.company.localeCompare(b.company) : attentionScore(b) - attentionScore(a) || a.company.localeCompare(b.company));
+  }, [clients, meetings, firstSeen, query, sortBy]);
+  const allClientNames = useMemo(() => Object.values(clients).map(c => c.company).sort((a, b) => a.localeCompare(b)), [clients]);
   return /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.paper,
@@ -1803,96 +3210,186 @@ function MeetingLog() {
           outline: 2px solid ${C.launch}; outline-offset: 1px;
         }
       `), /*#__PURE__*/React.createElement("div", {
-    className: "mx-auto px-4 sm:px-6 py-6",
+    key: theme,
+    className: "mx-auto px-4 sm:px-8",
+    "data-theme": theme,
     style: {
-      maxWidth: 1100
+      maxWidth: 1000,
+      paddingTop: 40,
+      paddingBottom: 56
     }
   }, /*#__PURE__*/React.createElement("header", {
-    className: "flex items-end justify-between gap-4 pb-4 flex-wrap",
+    className: "flex items-center gap-4 flex-wrap",
     style: {
-      borderBottom: `2px solid ${C.ink}`
+      paddingBottom: 22
     }
   }, /*#__PURE__*/React.createElement("h1", {
     style: {
-      fontFamily: SERIF,
-      fontSize: 31,
+      fontFamily: SANS,
+      fontSize: 19,
+      fontWeight: 500,
+      letterSpacing: "-0.01em",
       color: C.ink,
       lineHeight: 1
     }
-  }, "Partner log"), /*#__PURE__*/React.createElement(Meta, {
+  }, "CF Clients"), /*#__PURE__*/React.createElement("span", {
+    className: "grow"
+  }), /*#__PURE__*/React.createElement(Choice, {
+    size: 12,
+    tone: C.ink,
+    options: [{
+      v: "light",
+      label: "Day"
+    }, {
+      v: "dark",
+      label: "Night"
+    }],
+    value: theme,
+    onChange: v => persist(meetings, clients, {
+      theme: v
+    })
+  }), /*#__PURE__*/React.createElement(Meta, {
     color: attention ? C.late : C.inkSoft
   }, loading ? "Opening the log…" : attention ? `${attention} thing${attention > 1 ? "s" : ""} need you` : `${meetings.length} meeting${meetings.length === 1 ? "" : "s"} filed`)), /*#__PURE__*/React.createElement("div", {
-    className: "mt-5"
-  }, /*#__PURE__*/React.createElement(Intake, {
+    style: {
+      background: C.surface,
+      borderRadius: 6,
+      padding: "clamp(20px, 4vw, 40px)",
+      boxShadow: theme === "dark" ? "0 1px 2px rgba(0,0,0,0.5)" : "0 1px 2px rgba(31,44,37,0.06), 0 8px 24px rgba(31,44,37,0.05)"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Intake, {
     onFiled: onFiled,
-    clients: clients
-  })), saveError && /*#__PURE__*/React.createElement("p", {
+    clients: clients,
+    clientNames: allClientNames,
+    startOpen: !loading && meetings.length === 0
+  })), !loading && reportsDue.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "mt-4 p-3 flex gap-3 items-baseline flex-wrap",
+    style: {
+      background: C.surface,
+      borderLeft: `3px solid ${C.late}`
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: SANS,
+      fontSize: 14.5,
+      fontWeight: 500,
+      color: C.ink
+    }
+  }, "Weekly report", reportsDue.length > 1 ? "s" : "", " to send"), /*#__PURE__*/React.createElement(Meta, {
+    color: C.late
+  }, reportsDue.join(", ")), /*#__PURE__*/React.createElement("span", {
+    className: "grow"
+  }), /*#__PURE__*/React.createElement(Btn, {
+    kind: "bare",
+    onClick: () => jump(reportsDue[0].toLowerCase())
+  }, "Open ", reportsDue[0])), saveError && /*#__PURE__*/React.createElement("p", {
     className: "mt-3"
   }, /*#__PURE__*/React.createElement(Meta, {
     color: C.late
   }, saveError)), /*#__PURE__*/React.createElement("div", {
-    className: "mt-8 grid gap-8 lg:grid-cols-3"
-  }, /*#__PURE__*/React.createElement("aside", {
-    className: "lg:col-span-1"
-  }, /*#__PURE__*/React.createElement(Head, null, "Coming up"), !loading && /*#__PURE__*/React.createElement(Rail, {
-    meetings: meetings,
-    clients: clients,
-    firstSeen: firstSeen,
-    onDone: onDone,
-    onSnooze: onSnooze,
-    onJump: jump,
-    onNotified: onNotified
-  })), /*#__PURE__*/React.createElement("main", {
-    className: "lg:col-span-2"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-4 pb-2 flex-wrap",
+    className: "mt-8"
+  }, /*#__PURE__*/React.createElement("main", null, /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap",
     style: {
-      borderBottom: `1px solid ${C.rule}`
+      gap: 26,
+      borderBottom: `1px solid ${C.rule}`,
+      marginBottom: 26
     }
-  }, [["log", "Log"], ["partners", "Partners"], ["campaigns", "Campaigns"]].map(([t, label]) => /*#__PURE__*/React.createElement("button", {
+  }, [["up", "Coming up"], ["calendar", "Calendar"], ["clients", "Clients"], ["campaigns", "Campaigns"]].map(([t, label]) => /*#__PURE__*/React.createElement("button", {
     key: t,
     onClick: () => setTab(t),
     style: {
-      fontFamily: SERIF,
-      fontSize: 20,
+      fontFamily: SANS,
+      fontSize: 11,
+      letterSpacing: "0.09em",
+      textTransform: "uppercase",
       color: tab === t ? C.ink : C.inkFaint,
       background: "none",
       border: "none",
-      padding: 0,
+      borderBottom: `1px solid ${tab === t ? C.ink : "transparent"}`,
+      padding: "0 0 11px",
+      marginBottom: -1,
       cursor: "pointer"
     }
   }, label))), loading ? /*#__PURE__*/React.createElement("div", {
     className: "py-6"
   }, /*#__PURE__*/React.createElement(Meta, {
     color: C.inkFaint
-  }, "Loading your partners…")) : tab === "log" ? meetings.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, "Loading your clients…")) : tab === "up" ? /*#__PURE__*/React.createElement(Rail, {
+    meetings: meetings,
+    clients: clients,
+    firstSeen: firstSeen,
+    events: events,
+    onDone: onDone,
+    onSnooze: onSnooze,
+    onJump: jump,
+    onNotified: onNotified,
+    onReportSent: onReportSent
+  }) : tab === "clients" ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "pb-3"
+  }, /*#__PURE__*/React.createElement(AddClients, {
+    clients: clients,
+    onAdd: onAddClients
+  })), Object.keys(clients).length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-3 items-center flex-wrap py-3"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: {
+      ...inputStyle,
+      maxWidth: 260
+    },
+    value: query,
+    placeholder: "Search clients",
+    onChange: e => setQuery(e.target.value)
+  }), /*#__PURE__*/React.createElement(Choice, {
+    size: 12.5,
+    tone: C.ink,
+    options: [{
+      v: "attention",
+      label: "Needs attention"
+    }, {
+      v: "az",
+      label: "A–Z"
+    }],
+    value: sortBy,
+    onChange: setSortBy
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "grow"
+  }), /*#__PURE__*/React.createElement(Meta, {
+    color: C.inkFaint
+  }, partnerList.length, " of ", Object.keys(clients).length)), partnerList.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "py-6"
   }, /*#__PURE__*/React.createElement(Body, {
     color: C.inkFaint
-  }, "Nothing filed yet. Paste the notes from your last call above and they’ll be sorted into a summary, to-dos, campaigns, anything off plan, and a follow-up date.")) : meetings.map(m => /*#__PURE__*/React.createElement(LogEntry, {
-    key: m.id,
-    m: m,
-    client: clients[m.company.toLowerCase()],
-    isNewest: m.id === newest,
-    onToggleAction: onToggleAction,
-    onDelete: onDelete
-  })) : tab === "partners" ? partnerList.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "py-6"
-  }, /*#__PURE__*/React.createElement(Meta, {
-    color: C.inkFaint
-  }, "No partners yet. File a meeting and their kick-off checklist and reporting clock start here.")) : partnerList.map(c => /*#__PURE__*/React.createElement(PartnerCard, {
+  }, query.trim() ? "No client matches that search." : "No clients yet. File a meeting and they'll be sorted into a summary, to-dos, campaigns, anything off plan, and a follow-up date, all under the client.")) : partnerList.map(c => /*#__PURE__*/React.createElement(PartnerCard, {
     key: c.company.toLowerCase(),
     client: c,
     meetings: meetings,
     firstSeen: firstSeen,
     expanded: openClient === c.company.toLowerCase(),
     onExpand: setOpenClient,
-    onUpdate: onUpdateClient
-  })) : /*#__PURE__*/React.createElement(Campaigns, {
+    onUpdate: onUpdateClient,
+    onDelete: onDeleteClient,
+    onUpdateCampaign: onUpdateCampaign,
+    onToggleAction: onToggleAction,
+    onDeleteMeeting: onDelete
+  }))) : tab === "calendar" ? /*#__PURE__*/React.createElement(Calendar, {
+    meetings: meetings,
+    clients: clients,
+    firstSeen: firstSeen,
+    events: events,
+    onJump: jump,
+    onDone: onDone,
+    onNotified: onNotified,
+    onReportSent: onReportSent
+  }) : /*#__PURE__*/React.createElement(Campaigns, {
     meetings: meetings,
     clients: clients,
     onNotified: onNotified
-  }))), /*#__PURE__*/React.createElement(KeyBox, null), /*#__PURE__*/React.createElement("footer", {
+  })))), !loading && /*#__PURE__*/React.createElement(Backup, {
+    meetings: meetings,
+    clients: clients,
+    onImport: onImport
+  }), /*#__PURE__*/React.createElement(Settings, null), /*#__PURE__*/React.createElement("footer", {
     className: "mt-10 pt-4 flex items-center gap-3 flex-wrap",
     style: {
       borderTop: `1px solid ${C.ruleSoft}`
@@ -1903,10 +3400,13 @@ function MeetingLog() {
     className: "grow"
   }), confirmClear ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Meta, {
     color: C.late
-  }, "Delete every meeting and partner?"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Delete every meeting and client?"), /*#__PURE__*/React.createElement(Btn, {
     kind: "bare",
     onClick: () => {
-      persist([], {});
+      persist([], {}, {
+        events: [],
+        synced: null
+      });
       setConfirmClear(false);
     }
   }, "Yes, clear it"), /*#__PURE__*/React.createElement(Btn, {
@@ -1917,6 +3417,11 @@ function MeetingLog() {
     onClick: () => setConfirmClear(true)
   }, "Clear the log"))));
 }
-ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(MeetingLog, null));    </script>
+ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(MeetingLog, null));      } catch (err) {
+        var b = document.getElementById("boot");
+        if (b) b.textContent = "Something went wrong starting up: " + err.message;
+        throw err;
+      }
+    </script>
   </body>
 </html>
